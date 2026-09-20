@@ -1,11 +1,69 @@
-<div align="center">
+# GridPull CLI v4.0.0
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+High-performance native terminal media stream processor and downloader.
 
-  <h1>Built with AI Studio</h2>
+## Quick Start (Windows / macOS / Linux)
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+### 1. Install Dependencies
+```powershell
+npm install
+```
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+### 2. Launch Interactive Terminal UI
+Run directly using any of the following:
+```powershell
+npx gridpull
+```
+or:
+```powershell
+npm run cli
+```
 
-</div>
+---
+
+## Windows Installation (PowerShell & CMD)
+
+To configure `gridpull` as a global system command in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+This will:
+- Check Node.js (v18+), Python 3, and FFmpeg
+- Create native command wrappers (`bin\gridpull.cmd` and `bin\gridpull.ps1`)
+- Add the `bin` directory to your User `PATH`
+- Add the `gridpull` function to your `$PROFILE` so you can simply type `gridpull` from any directory
+
+---
+
+## Unix / macOS / Linux / WSL Installation
+
+```bash
+bash install.sh
+```
+or:
+```bash
+npm run setup
+```
+
+---
+
+## Command Line Usage
+
+```bash
+# Interactive TUI
+gridpull
+
+# Direct Download
+gridpull https://youtu.be/EXAMPLE -f 1080p_mp4 -o ./downloads
+
+# Extract High-Fidelity Audio
+gridpull audio https://youtu.be/EXAMPLE -f mp3 -b 320k
+
+# Multi-Source Catalog Search
+gridpull search "query terms"
+
+# Check Operational Dependencies
+gridpull deps
+```

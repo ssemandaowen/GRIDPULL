@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+downloads/
+*.mp4
+*.m4a
+*.mp3
+*.webm
+*.part
+*.ytdl
+*.srt
+cookies.txt
