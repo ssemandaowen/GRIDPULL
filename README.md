@@ -254,6 +254,34 @@ If `FFmpeg` is missing:
 
 ---
 
+
+
+---
+
+## 🐙 Publishing & Pushing to GitHub
+
+To update or publish your repository to GitHub:
+
+```bash
+# 1. Initialize local Git repository (if needed)
+git init
+
+# 2. Stage all files (respecting .gitignore)
+git add .
+
+# 3. Create release commit
+git commit -m "feat: GridPull CLI - high-performance terminal media engine"
+
+# 4. Set primary branch to main
+git branch -M main
+
+# 5. Link to your remote GitHub repository
+git remote add origin https://github.com/YOUR_USERNAME/GRIDPULL.git
+
+# 6. Push code to GitHub
+git upload / push origin main
+```
+
 ## 📄 License
 
 Distributed under the **MIT License**.

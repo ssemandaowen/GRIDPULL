@@ -33,10 +33,28 @@ export interface ExecutionOptions {
 
 export class DownloadEngine extends EventEmitter {
   private readonly pyEnginePath: string;
+  private currentProc: ChildProcess | null = null;
 
   constructor() {
     super();
     this.pyEnginePath = path.resolve(__dirname, '..', '..', 'python', 'yt_engine.py');
+  }
+
+  public abort(): void {
+    if (this.currentProc && !this.currentProc.killed) {
+      try {
+        if (process.platform === 'win32' && this.currentProc.pid) {
+          spawn('taskkill', ['/F', '/T', '/PID', this.currentProc.pid.toString()]);
+        } else if (this.currentProc.pid) {
+          process.kill(-this.currentProc.pid, 'SIGTERM');
+        } else {
+          this.currentProc.kill('SIGTERM');
+        }
+      } catch {
+        this.currentProc.kill();
+      }
+      this.currentProc = null;
+    }
   }
 
   public execute(options: ExecutionOptions): Promise<string> {
@@ -77,6 +95,7 @@ export class DownloadEngine extends EventEmitter {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
+      this.currentProc = proc;
       ProcessRegistry.track(proc);
 
       let stdoutBuffer = '';
@@ -129,10 +148,12 @@ export class DownloadEngine extends EventEmitter {
       });
 
       proc.on('error', (err) => {
+        this.currentProc = null;
         reject(new DownloadError(`Process spawn failure: ${err.message}`, 'RUNTIME', false));
       });
 
       proc.on('close', (code) => {
+        this.currentProc = null;
         if (code === 0) {
           resolve(downloadedFilePath || options.targetDirectory);
         } else {

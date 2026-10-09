@@ -2,7 +2,7 @@
  * @file src/tui/views/DownloadsManagerView.tsx
  * GridPull CLI native Download Manager and History Engine with
  * state categorization tabs (Active Queue, Finished, Failed),
- * strict 10-item pagination, queue control actions, and muted corporate color coding.
+ * strict 10-item pagination, queue control actions, and muted color coding.
  */
 
 import React from 'react';
@@ -20,7 +20,7 @@ export interface DownloadEntryItem {
   progress: string;
   speed: string;
   eta: string;
-  statusTag: '[RUNNING]' | '[PAUSED]' | '[QUEUED]' | '[DONE]' | '[FAILED]' | '[RETRYING]';
+  statusTag: '[RUNNING]' | '[PAUSED]' | '[STOPPED]' | '[QUEUED]' | '[DONE]' | '[FAILED]' | '[RETRYING]';
   statusColor: 'cyan' | 'yellow' | 'green' | 'red' | 'gray';
   targetPath?: string;
   error?: string | null;
@@ -53,7 +53,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
 }) => {
   const contentWidth = Math.max(34, width - 3);
 
-  // Active dataset based on current tab
   const currentList =
     activeTab === 'ACTIVE'
       ? activeItems
@@ -78,7 +77,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
       paddingX={1}
       paddingY={0}
     >
-      {/* Top Header & Tab Controls */}
       <Box justifyContent="space-between" marginBottom={1}>
         <Text bold color="white">
           DOWNLOAD MANAGER & HISTORY
@@ -88,7 +86,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
         </Text>
       </Box>
 
-      {/* Minimalist Tab Navigation Bar */}
       <Box marginBottom={1} paddingLeft={1}>
         <Text color="gray" dimColor>Views: </Text>
         <Text bold={activeTab === 'ACTIVE'} color={activeTab === 'ACTIVE' ? 'cyan' : 'gray'}>
@@ -104,7 +101,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
         </Text>
       </Box>
 
-      {/* Empty State or Paginated Table */}
       {totalCount === 0 ? (
         <Box flexDirection="column" paddingLeft={2} marginY={1}>
           <Text color="gray" dimColor>
@@ -122,7 +118,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
         </Box>
       ) : (
         <Box flexDirection="column">
-          {/* Table Header */}
           <Box paddingLeft={2} marginBottom={0}>
             <Text color="gray" dimColor>
               {'#   Title / Stream        Format       Prog   Speed      ETA    Status'}
@@ -132,7 +127,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
             <Text color="gray" dimColor>{'─'.repeat(Math.min(64, contentWidth - 4))}</Text>
           </Box>
 
-          {/* Strict 10-Item Paged Rows */}
           {pageItems.map((item, idx) => {
             const absoluteIdx = startIndex + idx;
             const isSelected = absoluteIdx === selectedIndex;
@@ -158,7 +152,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
             );
           })}
 
-          {/* Unobtrusive Footer Pagination Tracker */}
           <Box marginTop={1} paddingLeft={2}>
             <Text color="gray" dimColor>
               Page {currentPage + 1} of {totalPages} (Items {startIndex + 1}-{endIndex} of {totalCount})
@@ -167,7 +160,6 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
         </Box>
       )}
 
-      {/* Selected Item Metadata Inspection */}
       {selectedItem && (
         <Box flexDirection="column" marginTop={1} paddingLeft={2}>
           <Text color="gray" dimColor>
@@ -186,10 +178,9 @@ export const DownloadsManagerView: React.FC<DownloadsManagerViewProps> = ({
         </Box>
       )}
 
-      {/* Keyboard Controls Action Bar */}
       <Box marginTop={1} paddingLeft={2}>
         <Text color="gray" dimColor>
-          [Tab/1-3] View  •  [P] Pause/Resume  •  [X] Remove  •  [R] Retry  •  [C] Clear History  •  [Esc] Menu
+          [P] Pause  •  [S] Resume  •  [K] Stop  •  [X] Remove  •  [R] Retry  •  [C] Clear
         </Text>
       </Box>
     </Box>

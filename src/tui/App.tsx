@@ -16,6 +16,7 @@ import {
 import { Header } from './components/Header.js';
 import { Footer, ShortcutItem } from './components/Footer.js';
 import { Modal } from './components/Modal.js';
+import { LoadingScreen, ExitScreen } from './components/SplashScreen.js';
 import { ActiveDownloadsPanel } from './components/ActiveDownloadsPanel.js';
 import { MainMenuView, MAIN_MENU_ITEMS } from './views/MainMenuView.js';
 import { UrlPullerView } from './views/UrlPullerView.js';
@@ -33,6 +34,8 @@ import { StreamAnalyzer, VideoTierOption, AudioTierOption, parseBatchInput } fro
 import { MediaMetadata, DownloadJob, SearchResultItem, HistoryRecord } from '../types/index.js';
 
 export const App: React.FC = () => {
+  const [isBooting, setIsBooting] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
   const { exit } = useApp();
   const isRawModeSupported = Boolean(process.stdin.isTTY && typeof process.stdin.setRawMode === 'function');
   const queueManager = QueueManager.getInstance();
@@ -152,31 +155,37 @@ export const App: React.FC = () => {
   // Derived categorized download items with strict structural metadata
   const activeItems: DownloadEntryItem[] = useMemo(() => {
     return jobs
-      .filter((j) => j.status === 'RUNNING' || j.status === 'PENDING' || j.status === 'RETRYING')
+      .filter((j) => j.status === "RUNNING" || j.status === "PENDING" || j.status === "RETRYING" || j.status === "PAUSED" || j.status === "STOPPED")
       .map((j) => {
-        let tag: DownloadEntryItem['statusTag'] = '[QUEUED]';
-        let color: DownloadEntryItem['statusColor'] = 'gray';
+        let tag: DownloadEntryItem["statusTag"] = "[QUEUED]";
+        let color: DownloadEntryItem["statusColor"] = "gray";
 
-        if (j.status === 'RUNNING') {
-          tag = '[RUNNING]';
-          color = 'cyan';
-        } else if (j.status === 'RETRYING') {
-          tag = '[RETRYING]';
-          color = 'yellow';
+        if (j.status === "RUNNING") {
+          tag = "[RUNNING]";
+          color = "cyan";
+        } else if (j.status === "PAUSED") {
+          tag = "[PAUSED]";
+          color = "yellow";
+        } else if (j.status === "STOPPED") {
+          tag = "[STOPPED]";
+          color = "red";
+        } else if (j.status === "RETRYING") {
+          tag = "[RETRYING]";
+          color = "yellow";
         } else if (isQueuePaused) {
-          tag = '[PAUSED]';
-          color = 'yellow';
+          tag = "[PAUSED]";
+          color = "yellow";
         }
 
         return {
           id: j.id,
-          sourceType: 'queue',
+          sourceType: "queue",
           title: j.title || j.filename || j.url,
           url: j.url,
-          format: j.formatSelector || j.mediaType || 'best',
+          format: j.formatSelector || j.mediaType || "best",
           progress: `${j.percent.toFixed(0)}%`,
-          speed: j.speed || '--',
-          eta: j.eta || '--:--',
+          speed: j.speed || "--",
+          eta: j.eta || "--:--",
           statusTag: tag,
           statusColor: color,
           targetPath: j.targetDirectory,
@@ -399,8 +408,11 @@ export const App: React.FC = () => {
         confirmLabel: 'Exit App',
         cancelLabel: 'Stay',
         onConfirm: () => {
-          exit();
-          process.exit(0);
+          setIsExiting(true);
+          setTimeout(() => {
+            exit();
+            process.exit(0);
+          }, 600);
         },
       });
       return;
@@ -427,8 +439,11 @@ export const App: React.FC = () => {
           title: '🚪 Confirm Application Exit',
           message: 'Quit GridPull and return to terminal?',
           onConfirm: () => {
-            exit();
-            process.exit(0);
+            setIsExiting(true);
+            setTimeout(() => {
+              exit();
+              process.exit(0);
+            }, 600);
           },
         });
       } else if (key.upArrow) {
@@ -924,23 +939,50 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Action: [P] Pause / Resume Queue
-      if (input.toLowerCase() === 'p') {
-        if (isQueuePaused) {
-          queueManager.start();
-          flashStatus('Queue resumed.');
+      // Action: [P] Pause Item or Queue
+      if (input.toLowerCase() === "p") {
+        const selected = currentList[downloadsSelectedIndex];
+        if (selected && selected.sourceType === "queue") {
+          queueManager.pauseJob(selected.id);
+          flashStatus(`Paused job: ${selected.title.slice(0, 24)}`);
         } else {
           queueManager.pause();
-          flashStatus('Queue paused.');
+          flashStatus("Queue paused.");
         }
         return;
       }
 
-      // Action: [R] Retry Failed Items
-      if (input.toLowerCase() === 'r') {
+      // Action: [S] Resume Item or Queue
+      if (input.toLowerCase() === "s") {
         const selected = currentList[downloadsSelectedIndex];
-        if (selected && selected.statusTag === '[FAILED]') {
-          if (selected.sourceType === 'queue') {
+        if (selected && selected.sourceType === "queue") {
+          queueManager.resumeJob(selected.id);
+          flashStatus(`Resumed job: ${selected.title.slice(0, 24)}`);
+        } else {
+          queueManager.start();
+          flashStatus("Queue resumed.");
+        }
+        return;
+      }
+
+      // Action: [K] Stop Item or Queue
+      if (input.toLowerCase() === "k") {
+        const selected = currentList[downloadsSelectedIndex];
+        if (selected && selected.sourceType === "queue") {
+          queueManager.stopJob(selected.id);
+          flashStatus(`Stopped download: ${selected.title.slice(0, 24)}`);
+        } else {
+          queueManager.stopAll();
+          flashStatus("Stopped all downloads.");
+        }
+        return;
+      }
+
+      // Action: [R] Retry Failed / Stopped Items
+      if (input.toLowerCase() === "r") {
+        const selected = currentList[downloadsSelectedIndex];
+        if (selected && (selected.statusTag === "[FAILED]" || selected.statusTag === "[STOPPED]")) {
+          if (selected.sourceType === "queue") {
             queueManager.retryJob(selected.id);
           } else {
             queueManager.enqueue(selected.url, {
@@ -949,7 +991,7 @@ export const App: React.FC = () => {
               autoStart: true,
             });
           }
-          flashStatus(`Retrying failed download: ${selected.title.slice(0, 24)}`);
+          flashStatus(`Retrying download: ${selected.title.slice(0, 24)}`);
         } else {
           const retried = queueManager.retryAllFailed();
           flashStatus(`Retried ${retried} failed jobs.`);
@@ -957,21 +999,21 @@ export const App: React.FC = () => {
         return;
       }
 
-      // Action: [C] Clear Download History (purging local metadata logs of recent tasks)
-      if (input.toLowerCase() === 'c') {
+      // Action: [C] Clear Download History
+      if (input.toLowerCase() === "c") {
         historyRepo.clear();
-        jobs.filter((j) => j.status === 'COMPLETED').forEach((j) => queueManager.removeJob(j.id));
+        jobs.filter((j) => j.status === "COMPLETED").forEach((j) => queueManager.removeJob(j.id));
         setHistoryRecords([]);
         setDownloadsSelectedIndex(0);
-        flashStatus('✔ Cleared download history and purged local metadata audit logs.');
+        flashStatus("✔ Cleared download history and purged local metadata audit logs.");
         return;
       }
 
       // Action: [X] or [Delete] Remove Selected Item
-      if (input.toLowerCase() === 'x' || key.delete) {
+      if (input.toLowerCase() === "x" || key.delete) {
         const selected = currentList[downloadsSelectedIndex];
         if (selected) {
-          if (selected.sourceType === 'queue') {
+          if (selected.sourceType === "queue") {
             queueManager.removeJob(selected.id);
           }
           historyRepo.remove(selected.id);
@@ -1147,6 +1189,14 @@ export const App: React.FC = () => {
       { key: '[Esc]', label: 'Menu' },
     ];
   }, [currentView, searchResults, searchCurrentPage, pullerStep]);
+
+  if (isBooting) {
+    return <LoadingScreen onComplete={() => setIsBooting(false)} width={terminalWidth} height={terminalHeight} />;
+  }
+
+  if (isExiting) {
+    return <ExitScreen width={terminalWidth} height={terminalHeight} />;
+  }
 
   return (
     <Box flexDirection="column" width={terminalWidth} height={terminalHeight}>
