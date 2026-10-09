@@ -218,7 +218,7 @@ Write-Host ""
 Write-Host "  GridPull CLI is configured and ready for use in Windows Terminal, PowerShell, or CMD!" -ForegroundColor White
 Write-Host ""
 Write-Host "  Usage:" -ForegroundColor White
-Write-Host "    gridpull                 # Launch Google-style Interactive Terminal TUI" -ForegroundColor Cyan
+Write-Host "    gridpull                 # Launch GridPull Interactive Terminal TUI" -ForegroundColor Cyan
 Write-Host "    gridpull --help          # Display all supported commands and arguments" -ForegroundColor Cyan
 Write-Host "    gridpull deps            # Check runtime and engine diagnostics" -ForegroundColor Cyan
 Write-Host "    gridpull <url>           # Fast single or batch URL probe" -ForegroundColor Cyan

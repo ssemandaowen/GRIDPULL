@@ -1,6 +1,6 @@
 /**
  * @file src/tui/views/MainMenuView.tsx
- * Google Developer CLI / gcloud / Firebase style interactive action menu.
+ * GridPull CLI native interactive action menu.
  * Built with clean vertical indentation, subtle gray secondary text, and zero bulky borders.
  */
 

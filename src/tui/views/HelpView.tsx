@@ -1,6 +1,6 @@
 /**
  * @file src/tui/views/HelpView.tsx
- * Google Developer CLI style workflow guide, keybindings reference, and architecture details.
+ * GridPull CLI native workflow guide, keybindings reference, and architecture details.
  */
 
 import React from 'react';

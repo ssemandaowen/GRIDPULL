@@ -1,6 +1,6 @@
 /**
  * @file src/tui/views/UrlPullerView.tsx
- * Google Developer CLI / gcloud style multi-step interactive URL Puller.
+ * GridPull CLI native multi-step interactive URL Puller.
  * Features stream probing, upfront combined size calculations, and batch ingestion.
  */
 

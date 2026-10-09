@@ -1,6 +1,6 @@
 /**
  * @file src/tui/views/DownloadsManagerView.tsx
- * Google Developer CLI style Download Manager and History Engine with
+ * GridPull CLI native Download Manager and History Engine with
  * state categorization tabs (Active Queue, Finished, Failed),
  * strict 10-item pagination, queue control actions, and muted corporate color coding.
  */

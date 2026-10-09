@@ -985,39 +985,63 @@ export const App: React.FC = () => {
     }
 
     // 7. CONFIGURATION VIEW
-    if (currentView === 'CONFIG') {
+    if (currentView === "CONFIG") {
       if (key.escape) {
-        setCurrentView('MAIN_MENU');
+        setCurrentView("MAIN_MENU");
         return;
       }
       if (key.upArrow) {
-        setConfigSelectedIndex((prev) => (prev > 0 ? prev - 1 : 6));
+        setConfigSelectedIndex((prev) => (prev > 0 ? prev - 1 : 8));
       } else if (key.downArrow) {
-        setConfigSelectedIndex((prev) => (prev < 6 ? prev + 1 : 0));
-      } else if (key.return || input === ' ') {
-        if (configSelectedIndex === 1) {
-          // Cycle Max Concurrency
-          const nextVal = (engineConfig.maxConcurrency % 6) + 1;
-          configStore.set('maxConcurrency', nextVal);
+        setConfigSelectedIndex((prev) => (prev < 8 ? prev + 1 : 0));
+      } else if (key.return || input === " ") {
+        if (configSelectedIndex === 0) {
+          flashStatus(`Download path: ${engineConfig.downloadDir}`);
+        } else if (configSelectedIndex === 1) {
+          const nextVal = !engineConfig.subfoldersEnabled;
+          configStore.set("subfoldersEnabled", nextVal);
           setEngineConfig(configStore.getAll());
-          flashStatus(`Concurrency set to ${nextVal}`);
+          flashStatus(`Subfolders routing ${nextVal ? "enabled (audio/ & videos/)" : "disabled"}`);
         } else if (configSelectedIndex === 2) {
-          // Cycle Parallel Threads
+          const nextVal = (engineConfig.maxConcurrency % 6) + 1;
+          configStore.set("maxConcurrency", nextVal);
+          setEngineConfig(configStore.getAll());
+          flashStatus(`Max concurrency set to ${nextVal}`);
+        } else if (configSelectedIndex === 3) {
           const nextVal = engineConfig.parallelThreads === 16 ? 4 : engineConfig.parallelThreads + 4;
-          configStore.set('parallelThreads', nextVal);
+          configStore.set("parallelThreads", nextVal);
           setEngineConfig(configStore.getAll());
-          flashStatus(`Parallel threads set to ${nextVal}`);
+          flashStatus(`Parallel network threads set to ${nextVal}`);
+        } else if (configSelectedIndex === 4) {
+          const formats = ["1080p_mp4", "720p_mp4", "480p_mp4", "best_available"];
+          const idx = formats.indexOf(engineConfig.defaultFormat);
+          const nextVal = formats[(idx + 1) % formats.length];
+          configStore.set("defaultFormat", nextVal);
+          setEngineConfig(configStore.getAll());
+          flashStatus(`Default video format set to ${nextVal}`);
         } else if (configSelectedIndex === 5) {
-          // Toggle Auto-Start
-          const nextVal = !engineConfig.autoStartOnQueue;
-          configStore.set('autoStartOnQueue', nextVal);
+          const audioFormats = ["mp3", "flac", "m4a", "opus", "wav"];
+          const idx = audioFormats.indexOf(engineConfig.defaultAudioFormat);
+          const nextVal = audioFormats[(idx + 1) % audioFormats.length];
+          configStore.set("defaultAudioFormat", nextVal);
           setEngineConfig(configStore.getAll());
-          flashStatus(`Auto-start ${nextVal ? 'enabled' : 'disabled'}`);
+          flashStatus(`Default audio format set to ${nextVal}`);
         } else if (configSelectedIndex === 6) {
-          // Reset Config
+          const bitrates = ["320K", "256K", "192K", "128K"];
+          const idx = bitrates.indexOf(engineConfig.audioBitrate);
+          const nextVal = bitrates[(idx + 1) % bitrates.length];
+          configStore.set("audioBitrate", nextVal);
+          setEngineConfig(configStore.getAll());
+          flashStatus(`Audio bitrate set to ${nextVal}`);
+        } else if (configSelectedIndex === 7) {
+          const nextVal = !engineConfig.autoStartOnQueue;
+          configStore.set("autoStartOnQueue", nextVal);
+          setEngineConfig(configStore.getAll());
+          flashStatus(`Auto-start ${nextVal ? "enabled" : "disabled"}`);
+        } else if (configSelectedIndex === 8) {
           configStore.reset();
           setEngineConfig(configStore.getAll());
-          flashStatus('Configuration reset to defaults.');
+          flashStatus("Configuration reset to installation defaults.");
         }
       }
       return;

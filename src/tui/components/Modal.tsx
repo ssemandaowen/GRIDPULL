@@ -1,6 +1,6 @@
 /**
  * @file src/tui/components/Modal.tsx
- * Google Developer CLI style dialog modal with clean fine-line borders and generous padding.
+ * GridPull CLI native dialog modal with clean fine-line borders and generous padding.
  */
 
 import React from 'react';

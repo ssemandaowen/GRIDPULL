@@ -1,17 +1,18 @@
 {
   "name": "gridpull-cli",
-  "private": true,
-  "version": "4.0.0",
+  "version": "4.1.0",
+  "description": "Native high-performance terminal media downloader, catalog search engine, and stream processing toolkit",
   "type": "module",
   "bin": {
     "gridpull": "./bin/gridpull.js"
   },
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs && esbuild bin/cli.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/cli.mjs && node -e \"import('fs').then(fs => fs.writeFileSync('dist/cli.cjs', 'import(\\'./cli.mjs\\');'))\"",
-    "start": "node dist/server.cjs",
+    "dev": "tsx bin/cli.ts",
+    "build": "esbuild bin/cli.ts --bundle --platform=node --format=esm --packages=external --sourcemap --outfile=dist/cli.mjs && node -e \"import('fs').then(fs => fs.writeFileSync('dist/cli.cjs', 'import(\\'./cli.mjs\\');'))\"",
+    "start": "node bin/gridpull.js",
     "setup": "node bin/installer.js",
     "install:all": "node bin/installer.js",
+    "postinstall": "node bin/installer.js",
     "cli": "node bin/gridpull.js",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit"
@@ -19,13 +20,11 @@
   "dependencies": {
     "commander": "^15.0.0",
     "dotenv": "^17.2.3",
-    "express": "^4.21.2",
     "ink": "^7.1.1",
     "react": "^19.2.8",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.18",
     "esbuild": "^0.25.0",

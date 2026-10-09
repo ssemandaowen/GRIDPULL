@@ -1,6 +1,6 @@
 /**
  * @file src/tui/components/Header.tsx
- * Google Developer CLI / gcloud / Firebase style minimalist header and workspace breadcrumb.
+ * GridPull CLI native minimalist header and workspace breadcrumb.
  * Employs crisp typography, fine hairline rules, and generous negative space.
  */
 

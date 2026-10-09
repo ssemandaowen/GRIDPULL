@@ -372,4 +372,66 @@ program
     console.log();
   });
 
+
+const configCmd = program.command("config").description("View or manage persistent configuration settings");
+
+configCmd
+  .command("list", { isDefault: true })
+  .description("Display all current configuration settings")
+  .action(() => {
+    const cfg = configStore.getAll();
+    console.log("\n⚙️  GridPull Configuration Settings (~/.config/gridpull-cli/config.json):");
+    console.log("─────────────────────────────────────────────────────────────────────────────────");
+    console.log("KEY                   VALUE                                 DESCRIPTION");
+    console.log("─────────────────────────────────────────────────────────────────────────────────");
+    console.log(`downloadDir           ${cfg.downloadDir.padEnd(36)} Base storage directory`);
+    console.log(`subfoldersEnabled     ${String(cfg.subfoldersEnabled).padEnd(36)} Sort into audio/ & videos/ folders`);
+    console.log(`maxConcurrency        ${String(cfg.maxConcurrency).padEnd(36)} Max concurrent worker tasks`);
+    console.log(`parallelThreads       ${String(cfg.parallelThreads).padEnd(36)} Multi-connection network streams (-N)`);
+    console.log(`defaultFormat         ${cfg.defaultFormat.padEnd(36)} Default video resolution profile`);
+    console.log(`defaultAudioFormat    ${cfg.defaultAudioFormat.padEnd(36)} Default audio container extension`);
+    console.log(`audioBitrate          ${cfg.audioBitrate.padEnd(36)} Standalone audio bitrate quality`);
+    console.log(`autoStartOnQueue      ${String(cfg.autoStartOnQueue).padEnd(36)} Auto-start queued tasks`);
+    console.log("─────────────────────────────────────────────────────────────────────────────────");
+    console.log("Tip: Modify settings via CLI: \"gridpull config set <key> <value>\" or run TUI.\n");
+  });
+
+configCmd
+  .command("get <key>")
+  .description("Get value of a specific configuration key")
+  .action((key) => {
+    const val = configStore.get(key as any);
+    if (val === undefined) {
+      console.error(`✖ Unknown configuration key: "${key}"`);
+      process.exit(1);
+    }
+    console.log(`${key} = ${val}`);
+  });
+
+configCmd
+  .command("set <key> <value>")
+  .description("Set value for a configuration key")
+  .action((key, value) => {
+    let parsed: any = value;
+    if (value === "true") parsed = true;
+    else if (value === "false") parsed = false;
+    else if (!isNaN(Number(value)) && key !== "audioBitrate") parsed = Number(value);
+
+    try {
+      configStore.set(key as any, parsed);
+      console.log(`✔ Updated configuration setting: ${key} = ${parsed}`);
+    } catch (err: any) {
+      console.error(`✖ Failed to update configuration setting: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+configCmd
+  .command("reset")
+  .description("Reset configuration settings to defaults")
+  .action(() => {
+    configStore.reset();
+    console.log("✔ Configuration reset to installation defaults.");
+  });
+
 program.parse(process.argv);
