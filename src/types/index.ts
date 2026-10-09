@@ -3,7 +3,7 @@
  * Core domain types and interfaces for GridPull CLI.
  */
 
-export type JobStatus = 'IDLE' | 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'RETRYING' | 'SKIPPED';
+export type JobStatus = 'IDLE' | 'PENDING' | 'RUNNING' | 'PAUSED' | 'STOPPED' | 'COMPLETED' | 'FAILED' | 'RETRYING' | 'SKIPPED';
 export type MediaType = 'video' | 'audio' | 'dual';
 export type StreamKind = 'video' | 'audio' | 'muxed' | 'unknown';
 

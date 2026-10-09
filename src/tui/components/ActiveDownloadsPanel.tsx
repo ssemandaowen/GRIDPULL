@@ -1,6 +1,6 @@
 /**
  * @file src/tui/components/ActiveDownloadsPanel.tsx
- * Google Developer CLI / kilocode style non-blocking download & worker monitor.
+ * GridPull CLI native non-blocking download & worker monitor.
  * Replaces heavy block ASCII with fine hairline progress indicators and clean vertical hierarchy.
  */
 

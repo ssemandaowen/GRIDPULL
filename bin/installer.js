@@ -15,7 +15,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-// Clean typography styling helpers
 const colors = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
@@ -31,7 +30,7 @@ const colors = {
 function printHeader() {
   console.log('');
   console.log(`${colors.gray}────────────────────────────────────────────────────────────────────────${colors.reset}`);
-  console.log(`${colors.bold}${colors.white}  GridPull CLI — Universal Platform Installer${colors.reset}`);
+  console.log(`${colors.bold}${colors.white}  GridPull CLI — Universal Platform Installer & Setup${colors.reset}`);
   console.log(`${colors.gray}  Target Platform: ${colors.cyan}${process.platform}${colors.gray} (${os.type()} ${os.arch()}) // Node ${process.version}${colors.reset}`);
   console.log(`${colors.gray}────────────────────────────────────────────────────────────────────────${colors.reset}`);
   console.log('');
@@ -56,33 +55,53 @@ function getCommandOutput(cmd) {
   }
 }
 
-// ----------------------------------------------------------------------------
-// Windows Native Configuration
-// ----------------------------------------------------------------------------
-function runWindowsSetup() {
-  console.log(`${colors.bold}[1/4] Inspecting Windows Environment & Shell Support...${colors.reset}`);
-  const ps1Path = path.join(projectRoot, 'install.ps1');
+function ensureStreamEngine() {
+  console.log(`${colors.bold}[1/5] Verifying Stream Processing Subsystem (yt-dlp)...${colors.reset}`);
+  const pythonDir = path.join(projectRoot, 'python');
+  const ytdlpPath = path.join(pythonDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
 
-  // Try delegating to install.ps1 via PowerShell if available
-  if (checkCommand('powershell.exe') && fs.existsSync(ps1Path)) {
-    console.log(`  ${colors.cyan}ℹ${colors.reset} Invoking native PowerShell installer (install.ps1)...`);
-    try {
-      const psResult = spawnSync(
-        'powershell.exe',
-        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ps1Path],
-        { stdio: 'inherit', cwd: projectRoot }
-      );
-      if (psResult.status === 0) {
-        return true;
-      }
-      console.log(`  ${colors.yellow}⚠${colors.reset} PowerShell script returned status ${psResult.status}. Falling back to universal JS linker.`);
-    } catch (err) {
-      console.log(`  ${colors.yellow}⚠${colors.reset} Could not spawn powershell.exe (${err.message}). Using JavaScript fallback.`);
-    }
+  if (!fs.existsSync(pythonDir)) {
+    fs.mkdirSync(pythonDir, { recursive: true });
   }
 
-  // JS Fallback for Windows
-  console.log(`  ${colors.green}✔${colors.reset} Configuring CMD and PowerShell batch runners...`);
+  if (!fs.existsSync(ytdlpPath)) {
+    console.log(`  ${colors.cyan}ℹ${colors.reset} Downloading managed yt-dlp binary to ./python/...`);
+    const downloadUrl = process.platform === 'win32'
+      ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+      : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+
+    try {
+      if (checkCommand('curl')) {
+        execSync(`curl -L -s "${downloadUrl}" -o "${ytdlpPath}"`, { stdio: 'inherit' });
+      } else if (checkCommand('powershell.exe')) {
+        execSync(`powershell -Command "Invoke-WebRequest -Uri '${downloadUrl}' -OutFile '${ytdlpPath}'"`, { stdio: 'inherit' });
+      }
+      if (process.platform !== 'win32' && fs.existsSync(ytdlpPath)) {
+        fs.chmodSync(ytdlpPath, 0o755);
+      }
+      console.log(`  ${colors.green}✔${colors.reset} Stream engine downloaded successfully.`);
+    } catch (err) {
+      console.log(`  ${colors.yellow}⚠${colors.reset} Could not download local yt-dlp (${err.message}). Will rely on system yt-dlp.`);
+    }
+  } else {
+    console.log(`  ${colors.green}✔${colors.reset} Stream engine verified: ${colors.cyan}${ytdlpPath}${colors.reset}`);
+  }
+}
+
+function buildBundle() {
+  console.log(`${colors.bold}[2/5] Building Executable Bundle...${colors.reset}`);
+  const distDir = path.join(projectRoot, 'dist');
+  try {
+    console.log(`  ${colors.cyan}ℹ${colors.reset} Compiling CLI bundle with esbuild...`);
+    execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+    console.log(`  ${colors.green}✔${colors.reset} Bundle built cleanly in ./dist/`);
+  } catch (err) {
+    console.log(`  ${colors.yellow}⚠${colors.reset} Build warning: ${err.message}. Runtime will use TSX loader.`);
+  }
+}
+
+function runWindowsSetup() {
+  console.log(`${colors.bold}[3/5] Inspecting Windows Environment & Launcher Integration...${colors.reset}`);
   const binDir = path.join(projectRoot, 'bin');
   const cmdFile = path.join(binDir, 'gridpull.cmd');
   const ps1File = path.join(binDir, 'gridpull.ps1');
@@ -98,38 +117,18 @@ function runWindowsSetup() {
   return true;
 }
 
-// ----------------------------------------------------------------------------
-// Unix / Linux / macOS / WSL Setup
-// ----------------------------------------------------------------------------
 function runUnixSetup() {
-  console.log(`${colors.bold}[1/4] Inspecting Unix / POSIX Shell Environment...${colors.reset}`);
-  const shPath = path.join(projectRoot, 'install.sh');
-
-  // Try delegating to install.sh via bash if available
-  if (checkCommand('bash') && fs.existsSync(shPath)) {
-    console.log(`  ${colors.cyan}ℹ${colors.reset} Invoking native Bash installer (install.sh)...`);
-    try {
-      const shResult = spawnSync('bash', [shPath], { stdio: 'inherit', cwd: projectRoot });
-      if (shResult.status === 0) {
-        return true;
-      }
-      console.log(`  ${colors.yellow}⚠${colors.reset} Bash installer returned status ${shResult.status}. Falling back to universal JS linker.`);
-    } catch (err) {
-      console.log(`  ${colors.yellow}⚠${colors.reset} Could not spawn bash (${err.message}). Using JavaScript fallback.`);
-    }
-  }
-
-  // JS Fallback for Unix/macOS
-  console.log(`${colors.bold}[2/4] Setting Execution Permissions...${colors.reset}`);
+  console.log(`${colors.bold}[3/5] Setting File Execution Permissions...${colors.reset}`);
   try {
     fs.chmodSync(path.join(projectRoot, 'bin', 'cli.ts'), 0o755);
     fs.chmodSync(path.join(projectRoot, 'bin', 'gridpull'), 0o755);
-    console.log(`  ${colors.green}✔${colors.reset} Execution permissions applied.`);
+    fs.chmodSync(path.join(projectRoot, 'bin', 'gridpull.js'), 0o755);
+    console.log(`  ${colors.green}✔${colors.reset} Execution permissions applied to binaries in ./bin/`);
   } catch (e) {
     console.log(`  ${colors.yellow}⚠${colors.reset} Could not set chmod (${e.message}).`);
   }
 
-  console.log(`${colors.bold}[3/4] Linking Binary to User Path...${colors.reset}`);
+  console.log(`${colors.bold}[4/5] Linking Global 'gridpull' Command to User PATH...${colors.reset}`);
   const userBin = path.join(os.homedir(), '.local', 'bin');
   const targetLink = path.join(userBin, 'gridpull');
   const sourceBin = path.join(projectRoot, 'bin', 'gridpull');
@@ -142,7 +141,7 @@ function runUnixSetup() {
       fs.unlinkSync(targetLink);
     }
     fs.symlinkSync(sourceBin, targetLink);
-    console.log(`  ${colors.green}✔${colors.reset} Linked ${colors.cyan}${targetLink}${colors.reset} -> ${sourceBin}`);
+    console.log(`  ${colors.green}✔${colors.reset} Symlinked: ${colors.cyan}${targetLink}${colors.reset} -> ${sourceBin}`);
   } catch (err) {
     console.log(`  ${colors.yellow}⚠${colors.reset} Symlink notice: ${err.message}`);
   }
@@ -150,12 +149,8 @@ function runUnixSetup() {
   return true;
 }
 
-// ----------------------------------------------------------------------------
-// Universal Health & Dependency Audit
-// ----------------------------------------------------------------------------
 function runDiagnostics() {
-  console.log('');
-  console.log(`${colors.bold}[4/4] Verifying Core Operational Toolchain...${colors.reset}`);
+  console.log(`${colors.bold}[5/5] Operational Toolchain Health Check...${colors.reset}`);
 
   // Node check
   const nodeVer = process.version;
@@ -173,25 +168,16 @@ function runDiagnostics() {
   const ffmpegVer = getCommandOutput('ffmpeg -version');
   if (ffmpegVer) {
     const firstLine = ffmpegVer.split('\n')[0].substring(0, 42);
-    console.log(`  ${colors.green}✔${colors.reset} FFmpeg Media Transcoder: ${colors.cyan}${firstLine}...${colors.reset}`);
+    console.log(`  ${colors.green}✔${colors.reset} FFmpeg Transcoder   : ${colors.cyan}${firstLine}...${colors.reset}`);
   } else {
-    console.log(`  ${colors.yellow}⚠${colors.reset} FFmpeg Transcoder   : Not in PATH (merging limited)`);
-  }
-
-  // Local yt-dlp check
-  const ytdlpPath = path.join(projectRoot, 'python', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
-  if (fs.existsSync(ytdlpPath)) {
-    console.log(`  ${colors.green}✔${colors.reset} Managed Stream Engine: Present in ./python/`);
-  } else {
-    console.log(`  ${colors.cyan}ℹ${colors.reset} Stream Engine       : Uses system yt-dlp binary`);
+    console.log(`  ${colors.yellow}⚠${colors.reset} FFmpeg Transcoder   : Not in PATH (format merging limited)`);
   }
 }
 
-// ----------------------------------------------------------------------------
-// Main Execution
-// ----------------------------------------------------------------------------
 try {
   printHeader();
+  ensureStreamEngine();
+  buildBundle();
 
   const isWindows = process.platform === 'win32';
   if (isWindows) {
@@ -204,13 +190,13 @@ try {
 
   console.log('');
   console.log(`${colors.gray}────────────────────────────────────────────────────────────────────────${colors.reset}`);
-  console.log(`${colors.bold}${colors.green}  ✔ GridPull CLI Setup Complete${colors.reset}`);
+  console.log(`${colors.bold}${colors.green}  ✔ GridPull CLI Setup Complete — Global Command Ready!${colors.reset}`);
   console.log(`${colors.gray}────────────────────────────────────────────────────────────────────────${colors.reset}`);
   console.log('');
   console.log(`  Run interactive terminal interface:`);
   console.log(`    ${colors.cyan}gridpull${colors.reset}`);
   console.log('');
-  console.log(`  Or inspect commands:`);
+  console.log(`  Or view available commands & options:`);
   console.log(`    ${colors.cyan}gridpull --help${colors.reset}`);
   console.log('');
 } catch (error) {

@@ -1,6 +1,6 @@
 /**
  * @file src/tui/components/Footer.tsx
- * Google Developer CLI / gcloud style bottom notifications and shortcut reference bar.
+ * GridPull CLI native bottom notifications and shortcut reference bar.
  */
 
 import React from 'react';

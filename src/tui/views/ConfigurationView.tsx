@@ -1,6 +1,6 @@
 /**
  * @file src/tui/views/ConfigurationView.tsx
- * Google Developer CLI style configuration settings view.
+ * GridPull CLI native configuration settings view.
  * Uses clean vertical grouping, indented field descriptions, and no bulky borders.
  */
 
@@ -28,34 +28,44 @@ export const ConfigurationView: React.FC<ConfigurationViewProps> = ({
       hint: 'Base disk storage location for completed media files',
     },
     {
+      label: 'Subfolders Routing',
+      value: config.subfoldersEnabled ? 'ENABLED (videos/ & audio/)' : 'DISABLED (flat directory)',
+      hint: 'Sort completed files into separate audio/ and videos/ subfolders',
+    },
+    {
       label: 'Worker Concurrency Limit',
-      value: `${config.maxConcurrency} concurrent downloads`,
-      hint: 'Parallel worker allocation for queue processing',
+      value: `${config.maxConcurrency} concurrent workers`,
+      hint: 'Parallel worker allocation for active queue downloads',
     },
     {
       label: 'Segmented Network Threads (-N)',
       value: `${config.parallelThreads} streams`,
-      hint: 'yt-dlp multi-segmented network connections',
+      hint: 'yt-dlp multi-segmented parallel connection threads',
     },
     {
       label: 'Default Video Profile',
       value: config.defaultFormat,
-      hint: 'Initial stream resolution and container preference',
+      hint: 'Initial resolution profile preference for video downloads',
+    },
+    {
+      label: 'Default Audio Format',
+      value: config.defaultAudioFormat,
+      hint: 'Default container extension (mp3, flac, m4a, opus, wav)',
     },
     {
       label: 'Audio Transcode Bitrate',
       value: config.audioBitrate,
-      hint: 'Target bitrate for standalone audio extraction',
+      hint: 'Target audio bitrate quality for extraction',
     },
     {
       label: 'Auto-Start Queue',
       value: config.autoStartOnQueue ? 'ENABLED' : 'DISABLED',
-      hint: 'Automatically start workers upon enqueuing jobs',
+      hint: 'Automatically start queue execution when enqueuing new jobs',
     },
     {
       label: 'Reset Configuration',
-      value: '[Restore Defaults]',
-      hint: 'Reset all runtime settings to installation defaults',
+      value: '[Restore Installation Defaults]',
+      hint: 'Reset all configuration settings to factory defaults (~/.config/gridpull-cli/config.json)',
     },
   ];
 
@@ -105,7 +115,7 @@ export const ConfigurationView: React.FC<ConfigurationViewProps> = ({
 
       <Box marginTop={0} paddingLeft={3}>
         <Text color="gray" dimColor>
-          [↑↓] Navigate  •  [Enter / Space] Toggle  •  [Esc] Back
+          [↑↓] Navigate  •  [Enter / Space] Toggle/Cycle  •  [Esc] Back
         </Text>
       </Box>
     </Box>

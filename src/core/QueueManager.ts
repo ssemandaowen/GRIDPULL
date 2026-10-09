@@ -1,7 +1,8 @@
 /**
  * @file src/core/QueueManager.ts
- * Bounded concurrency download orchestration manager with exponential backoff scheduling,
- * disk space verification, and atomic state transitions.
+ * High-performance concurrent download queue orchestrator with
+ * individual/multiple pause, resume, stop, and remove capabilities,
+ * process abort tracking, and atomic state transitions.
  */
 
 import { EventEmitter } from 'node:events';
@@ -10,12 +11,12 @@ import { ConfigStore } from '../storage/ConfigStore.js';
 import { HistoryRepository } from '../storage/HistoryRepository.js';
 import { DiskGuard } from '../storage/DiskGuard.js';
 import { DownloadEngine } from './DownloadEngine.js';
-import { DiskSpaceError } from '../errors/SystemErrors.js';
 import { FormatRegistry } from '../parser/FormatRegistry.js';
 
 export class QueueManager extends EventEmitter {
   private static instance: QueueManager | null = null;
   private readonly queue: DownloadJob[] = [];
+  private readonly activeEngines = new Map<string, DownloadEngine>();
   private activeWorkers = 0;
   private isPaused = false;
   private readonly configStore: ConfigStore;
@@ -121,12 +122,93 @@ export class QueueManager extends EventEmitter {
 
   public pause(): void {
     this.isPaused = true;
+    this.pauseAll();
     this.emit('queuePaused');
+  }
+
+  public pauseJob(id: string): boolean {
+    const job = this.queue.find((j) => j.id === id);
+    if (!job) return false;
+
+    if (job.status === 'RUNNING') {
+      const engine = this.activeEngines.get(id);
+      if (engine) {
+        engine.abort();
+        this.activeEngines.delete(id);
+      }
+      job.status = 'PAUSED';
+      this.emit('jobPaused', job);
+      this.emit('jobUpdated', job);
+      return true;
+    } else if (job.status === 'PENDING') {
+      job.status = 'PAUSED';
+      this.emit('jobPaused', job);
+      this.emit('jobUpdated', job);
+      return true;
+    }
+    return false;
+  }
+
+  public resumeJob(id: string): boolean {
+    const job = this.queue.find((j) => j.id === id);
+    if (!job || (job.status !== 'PAUSED' && job.status !== 'STOPPED')) return false;
+
+    job.status = 'PENDING';
+    job.error = null;
+    this.emit('jobResumed', job);
+    this.emit('jobUpdated', job);
+    this.isPaused = false;
+    this.dispatchNext();
+    return true;
+  }
+
+  public stopJob(id: string): boolean {
+    const job = this.queue.find((j) => j.id === id);
+    if (!job) return false;
+
+    if (job.status === 'RUNNING') {
+      const engine = this.activeEngines.get(id);
+      if (engine) {
+        engine.abort();
+        this.activeEngines.delete(id);
+      }
+    }
+    job.status = 'STOPPED';
+    job.speed = '0 KiB/s';
+    this.emit('jobStopped', job);
+    this.emit('jobUpdated', job);
+    return true;
+  }
+
+  public pauseAll(): void {
+    for (const job of this.queue) {
+      if (job.status === 'RUNNING' || job.status === 'PENDING') {
+        this.pauseJob(job.id);
+      }
+    }
+  }
+
+  public resumeAll(): void {
+    this.isPaused = false;
+    for (const job of this.queue) {
+      if (job.status === 'PAUSED' || job.status === 'STOPPED') {
+        job.status = 'PENDING';
+      }
+    }
+    this.dispatchNext();
+  }
+
+  public stopAll(): void {
+    for (const job of this.queue) {
+      if (job.status === 'RUNNING' || job.status === 'PENDING' || job.status === 'PAUSED') {
+        this.stopJob(job.id);
+      }
+    }
   }
 
   public retryJob(id: string): boolean {
     const job = this.queue.find((j) => j.id === id);
-    if (!job || job.status !== 'FAILED') return false;
+    if (!job || (job.status !== 'FAILED' && job.status !== 'STOPPED')) return false;
     job.status = 'PENDING';
     job.retryCount = 0;
     job.error = null;
@@ -140,7 +222,7 @@ export class QueueManager extends EventEmitter {
   public retryAllFailed(): number {
     let count = 0;
     for (const job of this.queue) {
-      if (job.status === 'FAILED') {
+      if (job.status === 'FAILED' || job.status === 'STOPPED') {
         job.status = 'PENDING';
         job.retryCount = 0;
         job.error = null;
@@ -157,9 +239,29 @@ export class QueueManager extends EventEmitter {
   public removeJob(id: string): boolean {
     const idx = this.queue.findIndex((j) => j.id === id);
     if (idx === -1) return false;
+
     const [removed] = this.queue.splice(idx, 1);
+    if (removed.status === 'RUNNING') {
+      const engine = this.activeEngines.get(id);
+      if (engine) {
+        engine.abort();
+        this.activeEngines.delete(id);
+      }
+    }
     this.emit('jobRemoved', removed);
+    this.dispatchNext();
     return true;
+  }
+
+  public removeAll(ids?: string[]): number {
+    const targetIds = ids || this.queue.map((j) => j.id);
+    let count = 0;
+    for (const id of targetIds) {
+      if (this.removeJob(id)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   public getSnapshot(): ReadonlyArray<Readonly<DownloadJob>> {
@@ -171,6 +273,8 @@ export class QueueManager extends EventEmitter {
       total: this.queue.length,
       pending: this.queue.filter((j) => j.status === 'PENDING').length,
       running: this.queue.filter((j) => j.status === 'RUNNING').length,
+      paused: this.queue.filter((j) => j.status === 'PAUSED').length,
+      stopped: this.queue.filter((j) => j.status === 'STOPPED').length,
       failed: this.queue.filter((j) => j.status === 'FAILED').length,
       retrying: this.queue.filter((j) => j.status === 'RETRYING').length,
       isPaused: this.isPaused,
@@ -226,6 +330,8 @@ export class QueueManager extends EventEmitter {
     this.emit('jobStarted', nextJob);
 
     const engine = new DownloadEngine();
+    this.activeEngines.set(nextJob.id, engine);
+
     const resolvedTier = FormatRegistry.resolve(nextJob.formatSelector);
 
     engine.on('metadata', (meta) => {
@@ -239,6 +345,7 @@ export class QueueManager extends EventEmitter {
     });
 
     engine.on('progress', (telemetry) => {
+      if (nextJob.status !== 'RUNNING') return;
       nextJob.percent = telemetry.percent;
       nextJob.speed = telemetry.speed;
       nextJob.eta = telemetry.eta;
@@ -273,6 +380,8 @@ export class QueueManager extends EventEmitter {
         cookies: nextJob.cookies,
       })
       .then((targetPath) => {
+        if (nextJob.status === 'PAUSED' || nextJob.status === 'STOPPED') return;
+
         nextJob.status = 'COMPLETED';
         nextJob.percent = 100;
         nextJob.completedAt = Date.now();
@@ -287,13 +396,14 @@ export class QueueManager extends EventEmitter {
           error: null,
         });
 
-        // Splice completed item out of the active queue to prevent stale accumulation
         const idx = this.queue.indexOf(nextJob);
         if (idx >= 0) this.queue.splice(idx, 1);
 
         this.emit('jobCompleted', nextJob);
       })
       .catch((err) => {
+        if (nextJob.status === 'PAUSED' || nextJob.status === 'STOPPED') return;
+
         const isRetryable = err.retryable || /network|throttled|429|ssl|eof/i.test(err.message);
         if (isRetryable && nextJob.retryCount < nextJob.maxRetries) {
           nextJob.retryCount++;
@@ -302,8 +412,10 @@ export class QueueManager extends EventEmitter {
           this.emit('jobRetrying', nextJob, backoff);
 
           setTimeout(() => {
-            nextJob.status = 'PENDING';
-            this.dispatchNext();
+            if (nextJob.status === 'RETRYING') {
+              nextJob.status = 'PENDING';
+              this.dispatchNext();
+            }
           }, backoff);
           return;
         }
@@ -324,6 +436,7 @@ export class QueueManager extends EventEmitter {
         this.emit('jobFailed', nextJob);
       })
       .finally(() => {
+        this.activeEngines.delete(nextJob.id);
         this.activeWorkers--;
         this.dispatchNext();
       });

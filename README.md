@@ -1,6 +1,6 @@
 # ⚡ GridPull CLI
 
-> **High-performance native terminal media stream processor, multi-source catalog search engine, and universal downloader.**
+> **Native high-performance terminal media downloader, catalog search engine, and stream processing toolkit.**
 
 [![Version](https://img.shields.io/badge/version-4.1.0-blue.svg?style=flat-square)](package.json)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg?style=flat-square)](https://nodejs.org)
@@ -8,7 +8,6 @@
 [![React Ink](https://img.shields.io/badge/TUI-React%20Ink%20v7-black.svg?style=flat-square)](https://github.com/vadimdemedes/ink)
 [![Python](https://img.shields.io/badge/Engine-Python%203%20%2F%20yt--dlp-yellow.svg?style=flat-square)](https://github.com/yt-dlp/yt-dlp)
 [![License](https://img.shields.io/badge/license-MIT-green.svg?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20WSL-lightgrey.svg?style=flat-square)](#installation)
 
 ```
   ██████╗ ██████╗ ██╗██████╗ ██████╗ ██╗   ██╗██╗     ██╗     
@@ -23,335 +22,266 @@
 
 ## 📖 Overview
 
-**GridPull** is a developer-first terminal media toolkit. It blends an interactive **React Ink Terminal User Interface (TUI)** with an automated, scriptable **Command Line Interface (CLI)**. Powered by a high-throughput multi-threaded engine using Node.js, TypeScript, Python 3, `yt-dlp`, and FFmpeg, GridPull delivers instant format negotiation, lossless audio conversion, lossless stream slicing, and concurrent batch processing.
+**GridPull CLI** is a developer-first terminal media toolkit. It seamlessly combines an interactive **React Ink Terminal User Interface (TUI)** with a robust, scriptable **Command Line Interface (CLI)**. Powered by Node.js, TypeScript, Python 3, `yt-dlp`, and FFmpeg, GridPull delivers instant format negotiation, lossless audio conversion, precision stream slicing, and concurrent batch processing across **YouTube, SoundCloud, Bandcamp, Bilibili, Archive.org, and 1,000+ supported platforms**.
 
-Whether running as an interactive dashboard or integrated into automated shell scripts and CI/CD pipelines, GridPull provides reliable, error-resilient media processing across **YouTube, SoundCloud, Bandcamp, Bilibili, Archive.org, and 1,000+ supported platforms**.
+Whether running interactively as a live terminal dashboard or invoked via standard shell commands in automation pipelines, GridPull provides an intuitive experience with global executable support and transparent system diagnostic logging.
 
 ---
 
 ## ✨ Key Features
 
-- 🖥️ **Interactive Terminal UI (React Ink)**: Full-featured curses-style terminal dashboard with live telemetry meters, smooth keyboard navigation, and zero flickering.
-- ⚡ **Single-Pass Manifest Probing**: Unified inspection that queries stream manifests and resolves human-readable quality tiers in a single fast pass.
-- 🎯 **Universal Quality Tiers**: Eliminates cryptic format codes with clean semantic selectors like `1080p_mp4`, `720p_mp4`, `mp3_320`, `flac`, and `best_available`.
-- ✂️ **Precision Stream Slicing (`clip`)**: Download exact time ranges (e.g., `*00:01:00-00:02:30`) directly from the remote stream without downloading the full video.
-- 🎵 **High-Fidelity Audio Extraction (`audio`)**: Extract and transcode audio to MP3 (up to 320 kbps), FLAC (lossless), M4A, Opus, or WAV with automatic ID3 tagging and embedded artwork.
-- 📦 **Batch Downloader (`-b, --batch`)**: Process lists of URLs from text files or terminal input with concurrent job scheduling, backoff retry logic, and real-time queue metrics.
-- 🔍 **Multi-Source Catalog Search (`search`)**: Query YouTube, SoundCloud, Bandcamp, Bilibili, and Deezer directly from your terminal with paginated results.
-- 🖼️ **Media Extraction Tools**: Dedicated subcommands for extracting original high-resolution poster artwork (`thumb`) and closed captions / subtitle tracks (`subs`).
-- 🩺 **Environment Health Diagnostics (`deps`)**: Built-in verification for Node.js, Python 3, `yt-dlp`, and FFmpeg with actionable remediation hints.
-- 💾 **Local Audit History & Config**: Built-in SQLite/JSON history logging and persistent configuration management (`~/.gridpull/`).
+- 🖥️ **Dual Interface Modes**:
+  - **Interactive TUI**: Keyboard-driven React Ink dashboard with live telemetry meters, queue management, and settings control.
+  - **Direct CLI Subcommands**: Instant single-line execution for search, stream inspection, audio extraction, clipping, batch processing, and configuration.
+- 🌐 **Global Executable**: Installs directly into your system `$PATH` as a global `gridpull` command without depending on `npx`.
+- ⚙️ **Simple Configuration**: Easy settings management via direct CLI commands (`gridpull config set <key> <value>`) or via the interactive TUI.
+- ⚡ **Single-Pass Manifest Probing**: Instantly inspect stream manifests and resolve combined video/audio file size estimates upfront.
+- 🎯 **Universal Quality Profiles**: Simple quality selectors like `1080p_mp4`, `720p_mp4`, `mp3_320`, `flac`, and `best_available`.
+- ✂️ **Precision Stream Slicing (`clip`)**: Extract exact time ranges (e.g. `*00:01:00-00:02:30`) directly from remote streams.
+- 🎵 **High-Fidelity Audio Extraction (`audio`)**: Extract and transcode audio to MP3 (up to 320 kbps), FLAC (lossless), M4A, Opus, or WAV with ID3 tagging.
+- 📦 **Batch Downloader (`-b, --batch`)**: Process lists of URLs from text files with concurrent job scheduling and worker pool management.
+- 🔍 **Multi-Source Catalog Search (`search`)**: Search YouTube, SoundCloud, Bandcamp, Bilibili, and Deezer directly from your terminal.
+- 🖼️ **Media Extraction Tools**: Subcommands for high-resolution thumbnail artwork (`thumb`) and closed captions / subtitles (`subs`).
+- 🩺 **Environment Health Diagnostics (`deps`)**: Built-in verification for Node.js, Python 3, `yt-dlp`, and FFmpeg.
 
 ---
 
 ## 📋 System Requirements
 
-GridPull relies on standard, battle-tested open-source media utilities:
+GridPull relies on standard media utilities:
 
-| Dependency | Minimum Version | Purpose |
+| Component | Minimum Version | Required For |
 | :--- | :--- | :--- |
-| **Node.js** | `>= 18.0.0` | CLI runner & React Ink terminal interface |
-| **Python** | `>= 3.8.0` | Host runtime for the extraction backend |
-| **yt-dlp** | `latest recommended` | Underlying extractor engine |
-| **FFmpeg** | `>= 4.4.0` | Stream muxing, audio transcoding & slicing |
-
-### Installing Prerequisites
-
-#### macOS (Homebrew)
-```bash
-brew install node python ffmpeg yt-dlp
-```
-
-#### Ubuntu / Debian / WSL
-```bash
-sudo apt update && sudo apt install -y nodejs npm python3 python3-pip ffmpeg
-pip3 install yt-dlp
-```
-
-#### Windows (Winget or Chocolatey)
-```powershell
-# Using Windows Package Manager (Winget)
-winget install OpenJS.NodeJS Python.Python.3 Gyan.FFmpeg yt-dlp.yt-dlp
-
-# Or using Chocolatey
-choco install nodejs python ffmpeg yt-dlp
-```
+| **Node.js** | `>= 18.0.0` | Core TUI runtime and queue orchestrator |
+| **Python 3** | `>= 3.8` | `yt-dlp` stream extraction engine |
+| **yt-dlp** | Auto-managed | Stream manifest probing and network fetch |
+| **FFmpeg** | Recommended | Stream merging and audio format transcoding |
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation & First-Boot Setup
 
-### Option 1: Automated Script Setup (Recommended)
+### Global Installation (Recommended)
 
-#### Windows (PowerShell)
-Run the automated Windows installer to configure native wrappers and system `PATH`:
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1
+To install GridPull as a global command accessible from any terminal window:
+
+```bash
+# Clone the repository
+git clone https://github.com/ssemandaowen/GRIDPULL.git
+cd GRIDPULL
+
+# Install package globally
+npm install -g .
 ```
 
-#### Linux / macOS / WSL
-Run the POSIX installer script:
-```bash
-bash install.sh
-```
+The installer automatically verifies dependencies, downloads the managed `yt-dlp` stream engine, compiles the production bundle, and symlinks `gridpull` directly into your system `$PATH`.
 
-### Option 2: Clone and Setup via npm
+### Local Development Setup
+
+If you prefer installing locally without global system linking:
+
 ```bash
-git clone https://github.com/ssemandaowen245/gridpull-cli.git
-cd gridpull-cli
+# Install dependencies and build
 npm install
-npm run build
-npm link
-```
+npm run setup
 
-Verify that the CLI is accessible globally:
-```bash
-gridpull --version
-gridpull deps
+# Run via local executable
+./bin/gridpull
 ```
 
 ---
 
-## 🎮 Interactive Terminal UI (TUI)
+## 💡 Usage Guide
 
-Launch the full-screen terminal experience:
+### 1. Interactive Terminal UI (TUI)
+
+Launch the full interactive terminal interface by running `gridpull` without arguments:
+
 ```bash
 gridpull
 ```
-*(or explicitly: `gridpull tui`)*
 
-```
-================================================================================
-  GRIDPULL CLI v4.1.0 — ACTIVE WORKSPACE [SINGLE STREAM PULLER]
-================================================================================
-  [1] Single Stream    [2] Batch Queue    [3] Search Catalog
-  [4] Active Queue     [5] Audit History  [6] Diagnostics & Config
---------------------------------------------------------------------------------
-  Target URL: https://archive.org/details/BigBuckBunny_124
-  Title:      Big Buck Bunny (09:56)
-  Uploader:   Blender Foundation
+#### TUI Keyboard Navigation
 
-  Select Format Tier:
-  ❯ [1080p_mp4]      MP4   1920x1080  ~116.7 MB   Standard Full HD crisp visual fidelity
-    [720p_mp4]       MP4   1280x720   ~65.8 MB    High definition balanced stream
-    [mp3_320]        MP3   320 kbps   ~8.0 MB     Studio grade audio with album art
-    [best_available] Auto  Highest    ~116.7 MB   Highest resolution stream manifest
---------------------------------------------------------------------------------
-  [Enter] Confirm & Enqueue   [Esc] Reset Input   [Ctrl+C] Exit
-================================================================================
-```
-
-### Keyboard Navigation in TUI
 | Key | Action |
 | :--- | :--- |
-| `1` – `6` | Quick-switch between workspace modules |
-| `Tab` / `Shift+Tab` | Cycle focus between inputs and format lists |
-| `↑` / `↓` | Navigate format tiers, history records, or search results |
-| `Enter` | Confirm selection, execute search, or start download |
-| `Esc` | Step backward or cancel current input |
-| `Ctrl+C` | Prompt confirmation to safely exit |
+| `1` – `6` | Jump between views (Main Menu, Puller, Search, Downloads, Settings, Help) |
+| `↑` / `↓` | Navigate items and selection options |
+| `Enter` | Confirm selection, submit query, or start task |
+| `P` | Pause / Resume active download queue |
+| `X` | Remove selected item from queue or history |
+| `R` | Retry failed downloads |
+| `C` | Clear completed download history |
+| `Esc` | Return to Main Menu or dismiss dialog |
 
 ---
 
-## 💻 Command Line Interface (CLI)
+### 2. Command Line Interface (CLI)
 
-GridPull offers a direct command line interface designed for speed, scripting, and shell integration.
+GridPull offers clean direct subcommands for scriptable shell usage:
 
-### 1. Direct Video Download
-Download any video stream directly with auto-selected or specified format:
+#### Stream Extraction & Downloading
+
 ```bash
-# Download highest available resolution
+# Direct stream download using default profile
 gridpull "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-# Specify a target format tier and output folder
-gridpull "https://www.youtube.com/watch?v=dQw4w9WgXcQ" -f 1080p_mp4 -o ~/Downloads/Videos
+# Download specific quality profile
+gridpull "https://www.youtube.com/watch?v=dQw4w9WgXcQ" -f 1080p_mp4 -o ~/Videos
 
-# Allocate 16 concurrent connection threads for maximum speed
-gridpull "https://www.youtube.com/watch?v=dQw4w9WgXcQ" -f 1080p_mp4 -t 16
+# Batch process URLs from a text file
+gridpull -b urls.txt -o ~/Downloads/Batch
 ```
 
-### 2. Multi-Item Batch Ingestion
-Process a text file containing one URL per line:
-```bash
-# Download an entire batch using the 1080p preset
-gridpull -b urls.txt -f 1080p_mp4 -o ./batch_output
+#### Multi-Source Catalog Search (`search`)
 
-# Batch download as high-fidelity MP3
-gridpull -b urls.txt -f mp3_320 -o ./music
-```
-
-### 3. Audio Extraction & Transcoding (`audio`)
-Extract and transcode audio to your preferred format and bitrate:
-```bash
-# Extract 320kbps MP3 (default)
-gridpull audio "https://soundcloud.com/artist/track" -q 320K
-
-# Extract lossless FLAC
-gridpull audio "https://bandcamp.com/track/example" -f flac -o ~/Music
-
-# Extract compact Opus audio
-gridpull audio "https://www.youtube.com/watch?v=example" -f opus -q 160K
-```
-
-### 4. Precision Stream Trimming (`clip`)
-Download a precise segment without downloading the entire file:
-```bash
-# Cut a 1-minute clip from 00:01:30 to 00:02:30
-gridpull clip "https://www.youtube.com/watch?v=example" -s "*00:01:30-00:02:30" -o ./clips
-```
-
-### 5. Multi-Source Search (`search`)
-Search streaming platforms directly from the command line:
 ```bash
 # Search YouTube (default)
-gridpull search "synthwave live radio"
+gridpull search "lofi hip hop beats"
 
-# Search SoundCloud with 20 results
-gridpull search "lo-fi beats" -s soundcloud -c 20
-
-# Search Bandcamp and view page 2
-gridpull search "ambient electronic" -s bandcamp --page 2
+# Search SoundCloud or Bandcamp with page navigation
+gridpull search "synthwave mix" --source soundcloud --page 2
 ```
-*Supported search sources: `youtube`, `soundcloud`, `bandcamp`, `bilibili`, `deezer`.*
 
-### 6. Inspect Manifest & Format Tiers (`formats`)
-Inspect raw stream manifests alongside GridPull's resolved semantic tiers:
+#### Stream Formats & Upfront Sizing (`formats`)
+
 ```bash
+# Query available raw streams and estimated combined file sizes
 gridpull formats "https://archive.org/details/BigBuckBunny_124"
 ```
 
-### 7. Extract Artwork & Subtitles (`thumb`, `subs`)
-```bash
-# Download original high-resolution video thumbnail / cover art
-gridpull thumb "https://www.youtube.com/watch?v=example" -o ./art
+#### High-Fidelity Audio Extraction (`audio`)
 
-# Download subtitles as clean .srt
-gridpull subs "https://www.youtube.com/watch?v=example" --lang en -o ./subs
+```bash
+# Extract MP3 audio at 320 kbps
+gridpull audio "https://www.youtube.com/watch?v=dQw4w9WgXcQ" -f mp3 -q 320K
+
+# Extract FLAC lossless audio
+gridpull audio "https://soundcloud.com/artist/track" -f flac
 ```
 
-### 8. System Diagnostics & History
+#### Precision Time Slicing (`clip`)
+
 ```bash
-# Run binary health check
+# Trim exact segment without downloading full video
+gridpull clip "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --section "*00:01:00-00:02:30"
+```
+
+#### Metadata Tools (`thumb`, `subs`)
+
+```bash
+# Download high-resolution poster thumbnail
+gridpull thumb "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+# Download English subtitles (.srt)
+gridpull subs "https://www.youtube.com/watch?v=dQw4w9WgXcQ" --lang en
+```
+
+#### System Diagnostics (`deps`) & History (`history`)
+
+```bash
+# Verify system runtimes and binary dependencies
 gridpull deps
 
-# View download audit history
+# View recent download audit records
 gridpull history --limit 15
-
-# Reset configuration to factory defaults
-gridpull --reset-config
 ```
 
 ---
 
-## 🎛️ Universal Format Tier Reference
+## ⚙️ Configuration Management
 
-GridPull abstracts complex stream IDs into standardized semantic format tiers:
+GridPull stores persistent user settings in `~/.config/gridpull-cli/config.json`. You can easily view and modify settings either through the TUI Settings view or using direct CLI commands:
 
-| Tier Identifier | Container | Default Resolution / Quality | Description |
-| :--- | :--- | :--- | :--- |
-| `2160p_mp4` | `.mp4` | 3840x2160 (4K UHD) | Ultra high definition 60fps presentation |
-| `1440p_mp4` | `.mp4` | 2560x1440 (2K QHD) | High-bitrate presentation for 1440p displays |
-| `1080p_mp4` | `.mp4` | 1920x1080 (Full HD) | Standard crisp 1080p visual fidelity |
-| `720p_mp4` | `.mp4` | 1280x720 (HD) | Balanced high definition for fast download |
-| `480p_mp4` | `.mp4` | 854x480 (SD) | Standard definition with low bandwidth |
-| `360p_mp4` | `.mp4` | 640x360 (Mobile) | Minimal bandwidth for storage conservation |
-| `best_available` | Auto | Highest Available | Highest resolution stream manifest available |
-| `mp3_320` | `.mp3` | 320 kbps CBR | Studio-grade audio with ID3 metadata |
-| `mp3_192` | `.mp3` | 192 kbps VBR | Balanced MP3 transcode for mobile listening |
-| `m4a` | `.m4a` | 256 kbps AAC | Native stream extraction without lossy re-encoding |
-| `flac` | `.flac` | Bit-perfect Lossless | Lossless PCM preservation |
-| `opus` | `.opus` | 160 kbps VBR | Modern open audio format with high acoustic fidelity |
-| `thumbnail` | `.jpg` | Max Resolution | Video poster / album cover art |
-| `subtitles` | `.srt` | Plain Text | Closed captions / subtitles converted to `.srt` |
-
-*You can also pass raw format codes (e.g. `-f "137+140"` or `-f "bestvideo+bestaudio"`) at any time.*
-
----
-
-## 🏗️ Architecture
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                              GRIDPULL CLI                              │
-├──────────────────────────────────┬─────────────────────────────────────┤
-│     Interactive TUI (React Ink)  │       Headless CLI (Commander)      │
-│  - Live Telemetry & Progress     │  - Scriptable flag parser           │
-│  - Interactive Format Picker     │  - Direct piping & batch automation │
-│  - Multi-tab navigation          │  - Subcommands: audio, clip, search │
-├──────────────────────────────────┴─────────────────────────────────────┤
-│                          CORE SUBSYSTEMS                               │
-│  ┌───────────────────────┐  ┌─────────────────┐  ┌──────────────────┐  │
-│  │     QueueManager      │  │   UrlInspector  │  │ FormatResolver   │  │
-│  │  - Concurrency Pool   │  │  - Single Probe │  │  - Bitrate Math  │  │
-│  │  - Pause / Cancel     │  │  - Search API   │  │  - Tier Mapping  │  │
-│  │  - Retry & Backoff    │  │  - JSON Parse   │  │  - Raw Fallback  │  │
-│  └───────────────────────┘  └─────────────────┘  └──────────────────┘  │
-├────────────────────────────────────────────────────────────────────────┤
-│                          EXECUTION ENGINE                              │
-│         Python Bridge (`python/yt_engine.py`) ──▶ yt-dlp & FFmpeg      │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-- **Frontend**: React 19 + Ink 7 terminal layout engine with responsive terminal width calculations.
-- **Controller**: TypeScript core with strict typing and EventEmitter-driven telemetry.
-- **Subprocess Engine**: Caching resolver for Python 3, `yt-dlp`, and FFmpeg with zero-overhead execution.
-- **Persistence**: File-based configuration (`ConfigStore`) and execution audit repository (`HistoryRepository`).
-
----
-
-## 🛠️ Development & Building
+### CLI Configuration Commands
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/ssemandaowen245/gridpull-cli.git
-cd gridpull-cli
+# Display all configuration settings and current values
+gridpull config
 
-# 2. Install development dependencies
-npm install
+# View a specific setting
+gridpull config get downloadDir
 
-# 3. Start local development server / live reloader
-npm run dev
+# Update configuration settings
+gridpull config set maxConcurrency 4
+gridpull config set defaultFormat 1080p_mp4
+gridpull config set subfoldersEnabled true
+gridpull config set audioBitrate 320K
 
-# 4. Typecheck and lint codebase
-npm run lint
-
-# 5. Build production bundles
-npm run build
-
-# 6. Test CLI bundle locally
-node bin/gridpull.js --help
+# Reset all settings to defaults
+gridpull config reset
 ```
 
----
+### Available Configuration Options
 
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these guidelines:
-
-1. Fork the repository and create a descriptive feature branch:
-   ```bash
-   git checkout -b feature/awesome-feature
-   ```
-2. Commit your changes following standard conventional commit conventions:
-   ```bash
-   git commit -m "feat(parser): add support for custom format selectors"
-   ```
-3. Ensure the project builds cleanly without TypeScript or linter errors:
-   ```bash
-   npm run lint && npm run build
-   ```
-4. Push your branch and open a Pull Request.
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `downloadDir` | `string` | `~/Downloads/GridPull` | Base directory for completed downloads |
+| `subfoldersEnabled` | `boolean` | `true` | Route files into `audio/` and `videos/` subfolders |
+| `maxConcurrency` | `number` | `2` | Maximum concurrent worker downloads |
+| `parallelThreads` | `number` | `8` | Segmented parallel network connections (`-N`) |
+| `defaultFormat` | `string` | `1080p_mp4` | Default video resolution profile |
+| `defaultAudioFormat` | `string` | `mp3` | Default standalone audio format |
+| `audioBitrate` | `string` | `320K` | Default audio extraction bitrate |
+| `autoStartOnQueue` | `boolean` | `true` | Automatically start workers when jobs are enqueued |
 
 ---
 
-## ⚖️ License & Disclaimer
+## 🛠️ Diagnostics & Troubleshooting
 
-- **License**: Released under the permissive **[MIT License](LICENSE)**.
-- **Disclaimer**: GridPull is an open-source stream processing utility developed for legitimate archival, fair use, educational research, and personal media backup. Users are responsible for adhering to the terms of service of the content providers and local copyright regulations.
+Run diagnostic checks anytime to verify system state:
+
+```bash
+gridpull deps
+```
+
+Expected diagnostic output:
+
+```
+🩺 GridPull System Binary Diagnostics:
+----------------------------------------------------
+  ✔ Node.js     : v22.22.1
+  ✔ Python3     : Python 3.12.13
+  ✔ yt-dlp      : 2025.02.19
+  ✔ FFmpeg      : ffmpeg version 6.1.1
+```
+
+If `FFmpeg` is missing:
+- **macOS**: `brew install ffmpeg`
+- **Ubuntu / Debian**: `sudo apt update && sudo apt install -y ffmpeg`
+- **Arch Linux**: `sudo pacman -S ffmpeg`
+- **Windows**: `winget install FFmpeg` or `choco install ffmpeg`
 
 ---
 
-<p align="center">
-  Built with precision using <b>TypeScript</b>, <b>React Ink</b>, <b>Python</b>, <b>yt-dlp</b>, and <b>FFmpeg</b>.
-</p>
 
+
+---
+
+## 🐙 Publishing & Pushing to GitHub
+
+To update or publish your repository to GitHub:
+
+```bash
+# 1. Initialize local Git repository (if needed)
+git init
+
+# 2. Stage all files (respecting .gitignore)
+git add .
+
+# 3. Create release commit
+git commit -m "feat: GridPull CLI - high-performance terminal media engine"
+
+# 4. Set primary branch to main
+git branch -M main
+
+# 5. Link to your remote GitHub repository
+git remote add origin https://github.com/YOUR_USERNAME/GRIDPULL.git
+
+# 6. Push code to GitHub
+git upload / push origin main
+```
+
+## 📄 License
+
+Distributed under the **MIT License**.

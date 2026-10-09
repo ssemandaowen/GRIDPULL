@@ -1,6 +1,6 @@
 /**
  * @file src/tui/views/SearchMediaView.tsx
- * Google Developer CLI style multi-source catalog search interface
+ * GridPull CLI native multi-source catalog search interface
  * featuring dynamic client-side pagination with a strict limit of 10 items per page,
  * boundary rollover navigation, and dynamic table footer indicator.
  */
