@@ -6,10 +6,8 @@
 import { execSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { getProjectRoot } from '../utils/paths.js';
+import { resolvePython } from '../utils/python.js';
 
 export interface DependencyStatus {
   name: string;
@@ -21,12 +19,34 @@ export interface DependencyStatus {
 
 export class DependencyChecker {
   public static verifyAll(): DependencyStatus[] {
-    return [
-      this.checkBinary('Node.js', 'node --version', true),
-      this.checkBinary('Python 3', 'python3 --version', true),
-      this.checkBinary('FFmpeg', 'ffmpeg -version', true),
-      this.checkYtDlp(),
-    ];
+    const nodeStatus = this.checkBinary('Node.js', 'node --version', true);
+    const ffmpegStatus = this.checkBinary('FFmpeg', 'ffmpeg -version', true);
+    const ytdlpStatus = this.checkYtDlp();
+
+    let pythonStatus: DependencyStatus;
+    try {
+      const py = resolvePython();
+      const fullCmd = py.args.length > 0 ? `"${py.command}" ${py.args.join(' ')} --version` : `"${py.command}" --version`;
+      const out = execSync(fullCmd, { timeout: 3000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+      const firstLine = out.split('\n')[0].trim();
+      pythonStatus = {
+        name: 'Python 3',
+        installed: true,
+        version: firstLine,
+        path: py.args.length > 0 ? `${py.command} ${py.args.join(' ')}` : py.command,
+        required: true,
+      };
+    } catch {
+      pythonStatus = {
+        name: 'Python 3',
+        installed: false,
+        version: null,
+        path: null,
+        required: true,
+      };
+    }
+
+    return [nodeStatus, pythonStatus, ffmpegStatus, ytdlpStatus];
   }
 
   private static checkBinary(name: string, command: string, required: boolean): DependencyStatus {
@@ -52,7 +72,7 @@ export class DependencyChecker {
   }
 
   private static checkYtDlp(): DependencyStatus {
-    const localPy = path.resolve(__dirname, '..', '..', 'python', 'yt-dlp');
+    const localPy = path.join(getProjectRoot(), 'python', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
     if (fs.existsSync(localPy)) {
       try {
         const out = execSync(`"${localPy}" --version`, { timeout: 4000, encoding: 'utf8' }).trim();

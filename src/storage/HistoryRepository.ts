@@ -36,34 +36,41 @@ export class HistoryRepository {
       ...item,
     };
 
-    // Single record per URL: update existing in place or prepend
-    const existingIndex = this.records.findIndex((r) => r.url === record.url);
+    const existingIndex = this.records.findIndex((r) => r.url === record.url && r.format === record.format);
     if (existingIndex >= 0) {
-      this.records[existingIndex] = {
-        ...this.records[existingIndex],
-        ...record,
-        id: this.records[existingIndex].id,
-      };
-      // Move to front
-      const updated = this.records.splice(existingIndex, 1)[0];
-      this.records.unshift(updated);
+      const existing = this.records[existingIndex];
+      // Do not downgrade a COMPLETED record with a FAILED attempt
+      if (existing.status === 'COMPLETED' && record.status === 'FAILED') {
+        this.records.unshift(record);
+      } else {
+        this.records[existingIndex] = {
+          ...existing,
+          ...record,
+          id: existing.id,
+        };
+        const updated = this.records.splice(existingIndex, 1)[0];
+        this.records.unshift(updated);
+      }
     } else {
       this.records.unshift(record);
-      if (this.records.length > 500) {
-        this.records = this.records.slice(0, 500);
-      }
+    }
+
+    if (this.records.length > 500) {
+      this.records = this.records.slice(0, 500);
     }
 
     this.persist();
     return record;
   }
 
-  public isDuplicate(url: string, targetPath?: string): boolean {
-    if (!url) return false;
+  public isDuplicate(url: string, targetDirectory?: string, formatSelector?: string, force?: boolean): boolean {
+    if (force || !url) return false;
     return this.records.some((r) => {
       if (r.url !== url || r.status !== 'COMPLETED') return false;
-      if (!targetPath) return true;
-      return r.targetPath === targetPath;
+      if (targetDirectory && r.targetDirectory && r.targetDirectory !== targetDirectory) return false;
+      if (formatSelector && r.format && r.format !== formatSelector) return false;
+      if (r.targetPath && !fs.existsSync(r.targetPath)) return false;
+      return true;
     });
   }
 
@@ -85,8 +92,20 @@ export class HistoryRepository {
     if (fs.existsSync(this.storageFile)) {
       try {
         const raw = fs.readFileSync(this.storageFile, 'utf8');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return parsed.map((r: any) => ({
+            ...r,
+            targetDirectory: r.targetDirectory || (r.targetPath ? path.dirname(r.targetPath) : ''),
+          }));
+        }
       } catch {
+        const corruptFile = `${this.storageFile}.corrupt-${Date.now()}`;
+        try {
+          fs.renameSync(this.storageFile, corruptFile);
+        } catch {
+          // Ignore rename errors
+        }
         return [];
       }
     }
@@ -94,10 +113,12 @@ export class HistoryRepository {
   }
 
   private persist(): void {
+    const tmpFile = `${this.storageFile}.tmp`;
     try {
-      fs.writeFileSync(this.storageFile, JSON.stringify(this.records, null, 2), 'utf8');
+      fs.writeFileSync(tmpFile, JSON.stringify(this.records, null, 2), 'utf8');
+      fs.renameSync(tmpFile, this.storageFile);
     } catch {
-      // Best-effort atomic flush
+      // Best effort
     }
   }
 }

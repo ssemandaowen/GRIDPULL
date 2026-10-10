@@ -56,6 +56,7 @@ export interface DownloadJob {
   writeSubs?: boolean;
   subLang?: string;
   cookies?: string | null;
+  force?: boolean;
 }
 
 export interface QueueTelemetry {
@@ -104,7 +105,6 @@ export interface EngineConfig {
   diskSpaceHeadroomMB: number;
   retryMaxAttempts: number;
   retryBackoffMs: number;
-  autoResumeOnStartup: boolean;
   autoStartOnQueue: boolean;
 }
 
@@ -115,6 +115,7 @@ export interface HistoryRecord {
   title: string;
   format: string;
   mediaType: MediaType;
+  targetDirectory: string;
   targetPath: string;
   status: 'COMPLETED' | 'FAILED' | 'SKIPPED';
   error: string | null;

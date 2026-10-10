@@ -64,57 +64,69 @@ function ensureStreamEngine() {
     fs.mkdirSync(pythonDir, { recursive: true });
   }
 
-  if (!fs.existsSync(ytdlpPath)) {
+  let needsDownload = true;
+  if (fs.existsSync(ytdlpPath)) {
+    try {
+      const ver = execSync(`"${ytdlpPath}" --version`, { timeout: 3000, encoding: 'utf8' }).trim();
+      console.log(`  ${colors.green}✔${colors.reset} Stream engine verified: ${colors.cyan}yt-dlp v${ver}${colors.reset}`);
+      needsDownload = false;
+    } catch {
+      try {
+        fs.unlinkSync(ytdlpPath);
+      } catch {
+        // Ignore
+      }
+    }
+  }
+
+  if (needsDownload) {
+    const hasCurl = checkCommand('curl');
+    const hasPs = checkCommand('powershell.exe') || checkCommand('powershell');
+
+    if (!hasCurl && !hasPs) {
+      console.log(`  ${colors.yellow}⚠${colors.reset} Neither curl nor powershell was found on PATH. Stream engine will use system yt-dlp.`);
+      return;
+    }
+
     console.log(`  ${colors.cyan}ℹ${colors.reset} Downloading managed yt-dlp binary to ./python/...`);
     const downloadUrl = process.platform === 'win32'
       ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
       : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
 
     try {
-      if (checkCommand('curl')) {
-        execSync(`curl -L -s "${downloadUrl}" -o "${ytdlpPath}"`, { stdio: 'inherit' });
-      } else if (checkCommand('powershell.exe')) {
-        execSync(`powershell -Command "Invoke-WebRequest -Uri '${downloadUrl}' -OutFile '${ytdlpPath}'"`, { stdio: 'inherit' });
+      if (hasCurl) {
+        execSync(`curl -fL -s "${downloadUrl}" -o "${ytdlpPath}"`, { stdio: 'ignore' });
+      } else if (hasPs) {
+        execSync(`powershell -NoProfile -Command "Invoke-WebRequest -Uri '${downloadUrl}' -OutFile '${ytdlpPath}'"`, { stdio: 'ignore' });
       }
+
       if (process.platform !== 'win32' && fs.existsSync(ytdlpPath)) {
         fs.chmodSync(ytdlpPath, 0o755);
       }
-      console.log(`  ${colors.green}✔${colors.reset} Stream engine downloaded successfully.`);
-    } catch (err) {
-      console.log(`  ${colors.yellow}⚠${colors.reset} Could not download local yt-dlp (${err.message}). Will rely on system yt-dlp.`);
+
+      const ver = execSync(`"${ytdlpPath}" --version`, { timeout: 4000, encoding: 'utf8' }).trim();
+      console.log(`  ${colors.green}✔${colors.reset} Stream engine downloaded & verified: ${colors.cyan}yt-dlp v${ver}${colors.reset}`);
+    } catch {
+      if (fs.existsSync(ytdlpPath)) {
+        try {
+          fs.unlinkSync(ytdlpPath);
+        } catch {
+          // Ignore
+        }
+      }
+      console.log(`  ${colors.yellow}⚠${colors.reset} Could not download valid local yt-dlp binary. Engine will rely on system yt-dlp.`);
     }
-  } else {
-    console.log(`  ${colors.green}✔${colors.reset} Stream engine verified: ${colors.cyan}${ytdlpPath}${colors.reset}`);
   }
 }
 
 function buildBundle() {
   console.log(`${colors.bold}[2/5] Building Executable Bundle...${colors.reset}`);
-  const distDir = path.join(projectRoot, 'dist');
   try {
-    console.log(`  ${colors.cyan}ℹ${colors.reset} Compiling CLI bundle with esbuild...`);
-    execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+    execSync('npm run build', { cwd: projectRoot, stdio: 'ignore' });
     console.log(`  ${colors.green}✔${colors.reset} Bundle built cleanly in ./dist/`);
-  } catch (err) {
-    console.log(`  ${colors.yellow}⚠${colors.reset} Build warning: ${err.message}. Runtime will use TSX loader.`);
+  } catch {
+    console.log(`  ${colors.yellow}ℹ${colors.reset} esbuild not available; runtime will use tsx loader.`);
   }
-}
-
-function runWindowsSetup() {
-  console.log(`${colors.bold}[3/5] Inspecting Windows Environment & Launcher Integration...${colors.reset}`);
-  const binDir = path.join(projectRoot, 'bin');
-  const cmdFile = path.join(binDir, 'gridpull.cmd');
-  const ps1File = path.join(binDir, 'gridpull.ps1');
-
-  const cmdContent = `@ECHO OFF\r\nSETLOCAL\r\nSET "PROJECT_ROOT=${projectRoot}"\r\nSET "LAUNCHER=%PROJECT_ROOT%\\bin\\gridpull.js"\r\nnode "%LAUNCHER%" %*\r\n`;
-  fs.writeFileSync(cmdFile, cmdContent, 'utf8');
-
-  const ps1Content = `# GridPull PowerShell Launcher\r\nparam([Parameter(ValueFromRemainingArguments = $true)]$Args)\r\n$ProjectRoot = "${projectRoot}"\r\n$Launcher = Join-Path $ProjectRoot "bin\\gridpull.js"\r\n& node $Launcher @Args\r\n`;
-  fs.writeFileSync(ps1File, ps1Content, 'utf8');
-
-  console.log(`  ${colors.green}✔${colors.reset} Created ${colors.cyan}${cmdFile}${colors.reset}`);
-  console.log(`  ${colors.green}✔${colors.reset} Created ${colors.cyan}${ps1File}${colors.reset}`);
-  return true;
 }
 
 function runUnixSetup() {
@@ -152,19 +164,16 @@ function runUnixSetup() {
 function runDiagnostics() {
   console.log(`${colors.bold}[5/5] Operational Toolchain Health Check...${colors.reset}`);
 
-  // Node check
   const nodeVer = process.version;
   console.log(`  ${colors.green}✔${colors.reset} Node.js Runtime     : ${colors.cyan}${nodeVer}${colors.reset}`);
 
-  // Python check
   const pyVer = getCommandOutput('python3 --version') || getCommandOutput('python --version');
   if (pyVer) {
     console.log(`  ${colors.green}✔${colors.reset} Python Subsystem    : ${colors.cyan}${pyVer}${colors.reset}`);
   } else {
-    console.log(`  ${colors.yellow}⚠${colors.reset} Python Subsystem    : Not detected in PATH`);
+    console.log(`  ${colors.yellow}⚠${colors.reset} Python Subsystem    : Not detected in PATH (Set GRIDPULL_PYTHON)`);
   }
 
-  // FFmpeg check
   const ffmpegVer = getCommandOutput('ffmpeg -version');
   if (ffmpegVer) {
     const firstLine = ffmpegVer.split('\n')[0].substring(0, 42);
@@ -179,10 +188,7 @@ try {
   ensureStreamEngine();
   buildBundle();
 
-  const isWindows = process.platform === 'win32';
-  if (isWindows) {
-    runWindowsSetup();
-  } else {
+  if (process.platform !== 'win32') {
     runUnixSetup();
   }
 
@@ -190,7 +196,25 @@ try {
 
   console.log('');
   console.log(`${colors.gray}────────────────────────────────────────────────────────────────────────${colors.reset}`);
-  console.log(`${colors.bold}${colors.green}  ✔ GridPull CLI Setup Complete — Global Command Ready!${colors.reset}`);
+
+  const isGlobalReady = checkCommand('gridpull');
+  if (isGlobalReady) {
+    console.log(`${colors.bold}${colors.green}  ✔ GridPull CLI Setup Complete — Global Command Ready!${colors.reset}`);
+  } else {
+    console.log(`${colors.bold}${colors.yellow}  ⚠ GridPull CLI Setup Complete${colors.reset}`);
+    if (process.platform === 'win32') {
+      console.log(`  ${colors.yellow}Notice:${colors.reset} To run 'gridpull' globally, ensure your npm global bin folder is on your PATH.`);
+      console.log(`  Run: ${colors.cyan}npm prefix -g${colors.reset} and add the output path to PATH.`);
+    } else {
+      const userBin = path.join(os.homedir(), '.local', 'bin');
+      const envPath = process.env.PATH || '';
+      if (!envPath.includes(userBin)) {
+        console.log(`  ${colors.yellow}Notice:${colors.reset} ${userBin} is not on your PATH.`);
+        console.log(`  Add to shell profile: ${colors.cyan}export PATH="$HOME/.local/bin:$PATH"${colors.reset}`);
+      }
+    }
+  }
+
   console.log(`${colors.gray}────────────────────────────────────────────────────────────────────────${colors.reset}`);
   console.log('');
   console.log(`  Run interactive terminal interface:`);
@@ -200,6 +224,10 @@ try {
   console.log(`    ${colors.cyan}gridpull --help${colors.reset}`);
   console.log('');
 } catch (error) {
-  console.error(`${colors.red}Installation error:${colors.reset}`, error);
-  process.exit(1);
+  console.error(`${colors.yellow}Installer warning:${colors.reset}`, error.message);
+  if (process.env.npm_lifecycle_event === 'postinstall') {
+    process.exit(0);
+  } else {
+    process.exit(1);
+  }
 }

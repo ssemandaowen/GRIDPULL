@@ -33,6 +33,7 @@ program
   .option('-b, --batch <file>', 'Path to batch .txt file containing 1 URL per line')
   .option('--section <range>', 'Clip section time range (e.g. *00:01:00-00:02:30)')
   .option('--cookies <file>', 'Path to Netscape cookies.txt file')
+  .option('--force', 'Force re-download even if recorded in download history')
   .option('--reset-config', 'Reset configuration settings to defaults')
   .action(async (url, options) => {
     if (options.resetConfig) {
@@ -47,22 +48,52 @@ program
         process.exit(1);
       }
       const raw = fs.readFileSync(options.batch, 'utf8');
-      const urls = raw.split(/\r?\n/).map((u) => u.trim()).filter((u) => u.length > 0);
+      const urls = raw
+        .split(/\r?\n/)
+        .map((u) => u.trim())
+        .filter((u) => u.length > 0 && !u.startsWith('#'));
+
+      if (urls.length === 0) {
+        console.log(`⚡ Batch file ${options.batch} contains no valid URLs.`);
+        process.exit(0);
+      }
+
+      const resolved = FormatRegistry.resolve(options.format);
       console.log(`⚡ Ingesting ${urls.length} URLs from batch file: ${options.batch}...`);
+
+      let completedCount = 0;
+      let failedCount = 0;
+      let skippedCount = 0;
+
       queueManager.enqueueBatch(urls, {
-        format: options.format,
+        format: resolved.selector,
         targetDirectory: options.outDir,
+        section: options.section,
+        cookies: options.cookies,
+        threads: options.threads ? parseInt(options.threads, 10) : undefined,
+        force: options.force,
       });
 
       queueManager.on('jobCompleted', (job) => {
+        completedCount++;
         console.log(`✔ [COMPLETED] ${job.title || job.url}`);
       });
+
       queueManager.on('jobFailed', (job) => {
+        failedCount++;
         console.error(`✖ [FAILED] ${job.url}: ${job.error}`);
       });
+
+      queueManager.on('jobSkipped', (job) => {
+        skippedCount++;
+        console.log(`⏭ [SKIPPED] ${job.url} (Already downloaded)`);
+      });
+
       queueManager.on('queueDrained', () => {
-        console.log('\n🎉 All batch downloads completed.');
-        process.exit(0);
+        console.log(
+          `\n🎉 Batch processing finished: ${completedCount} completed, ${failedCount} failed, ${skippedCount} skipped.`
+        );
+        process.exit(failedCount > 0 ? 1 : 0);
       });
       return;
     }
@@ -72,12 +103,16 @@ program
       console.log(`\n⚡ Initializing download for: ${url}`);
       console.log(`   Format: ${resolved.label} [${resolved.selector}]`);
 
+      const threads = options.threads ? parseInt(options.threads, 10) : undefined;
+
       const job = queueManager.enqueue(url, {
         format: resolved.selector,
         targetDirectory: options.outDir,
         mediaType: resolved.mode === 'audio' ? 'audio' : 'video',
         section: options.section,
         cookies: options.cookies,
+        threads,
+        force: options.force,
         autoStart: true,
       });
 
@@ -91,6 +126,13 @@ program
         if (completedJob.id === job.id) {
           process.stdout.write('\r                                                                 \r');
           console.log(`✔ Download finished: ${completedJob.filename || completedJob.title || completedJob.url}\n`);
+          process.exit(0);
+        }
+      });
+
+      queueManager.on('jobSkipped', (skippedJob) => {
+        if (skippedJob.id === job.id) {
+          console.log('Already downloaded, skipping. Use --force to re-download.\n');
           process.exit(0);
         }
       });
@@ -118,13 +160,13 @@ program
 
 program
   .command('search <query>')
-  .description('Search multi-source media catalog with dynamic pagination')
-  .option('-s, --source <source>', 'Search source (youtube, soundcloud, bandcamp, bilibili, deezer)', 'youtube')
-  .option('-c, --count <number>', 'Total number of items to query', '30')
-  .option('-p, --page <number>', 'Page number to display (10 items per page)', '1')
+  .description('Multi-source catalog search engine')
+  .option('-s, --source <source>', 'Catalog source (youtube, soundcloud, bandcamp, bilibili, deezer)', 'youtube')
+  .option('-l, --limit <count>', 'Number of results to retrieve', '15')
+  .option('-p, --page <number>', 'Page number for paginated view', '1')
   .action(async (query, opts) => {
     const inspector = new UrlInspector();
-    const count = parseInt(opts.count, 10) || 30;
+    const count = parseInt(opts.limit, 10) || 15;
     const requestedPage = Math.max(1, parseInt(opts.page, 10) || 1);
     console.log(`\n🔍 Searching ${opts.source} for "${query}"...\n`);
     try {
@@ -211,16 +253,21 @@ program
 
 program
   .command('audio <url>')
-  .description('VidMate / Snaptube Tool: Extract and convert stream directly to high-fidelity audio')
+  .description('Extract and convert stream directly to high-fidelity audio')
   .option('-f, --format <format>', 'Audio container (mp3, flac, m4a, opus, wav)', 'mp3')
   .option('-q, --quality <quality>', 'Audio bitrate quality (e.g. 320K, 192K, 0)', '320K')
   .option('-o, --out-dir <directory>', 'Destination directory')
+  .option('-t, --threads <number>', 'Parallel connection thread count (-N)', '8')
+  .option('--force', 'Force re-download even if recorded in download history')
   .action((url, opts) => {
     console.log(`\n🎵 Extracting audio (${opts.format.toUpperCase()} @ ${opts.quality}) from: ${url}`);
     const job = queueManager.enqueue(url, {
       format: opts.format,
       targetDirectory: opts.outDir,
       mediaType: 'audio',
+      audioQuality: opts.quality,
+      threads: opts.threads ? parseInt(opts.threads, 10) : undefined,
+      force: opts.force,
       autoStart: true,
     });
 
@@ -236,6 +283,12 @@ program
         process.exit(0);
       }
     });
+    queueManager.on('jobSkipped', (skippedJob) => {
+      if (skippedJob.id === job.id) {
+        console.log('Already downloaded, skipping. Use --force to re-download.\n');
+        process.exit(0);
+      }
+    });
     queueManager.on('jobFailed', (failedJob) => {
       if (failedJob.id === job.id) {
         process.stdout.write('\r                                                                 \r');
@@ -247,16 +300,20 @@ program
 
 program
   .command('clip <url>')
-  .description('VidMate / Snaptube Tool: Download trimmed video or audio time slice without full download')
+  .description('Download trimmed video or audio time slice without full download')
   .requiredOption('-s, --section <range>', 'Time slice specification (e.g. *00:00:30-00:01:45)')
   .option('-f, --format <format>', 'Video format tier', 'bv*+ba/b')
   .option('-o, --out-dir <directory>', 'Destination directory')
+  .option('-t, --threads <number>', 'Parallel connection thread count (-N)', '8')
+  .option('--force', 'Force re-download even if recorded in download history')
   .action((url, opts) => {
     console.log(`\n✂️  Clipping segment [${opts.section}] from: ${url}`);
     const job = queueManager.enqueue(url, {
       format: opts.format,
       section: opts.section,
       targetDirectory: opts.outDir,
+      threads: opts.threads ? parseInt(opts.threads, 10) : undefined,
+      force: opts.force,
       autoStart: true,
     });
 
@@ -272,6 +329,12 @@ program
         process.exit(0);
       }
     });
+    queueManager.on('jobSkipped', (skippedJob) => {
+      if (skippedJob.id === job.id) {
+        console.log('Already downloaded, skipping. Use --force to re-download.\n');
+        process.exit(0);
+      }
+    });
     queueManager.on('jobFailed', (failedJob) => {
       if (failedJob.id === job.id) {
         process.stdout.write('\r                                                                 \r');
@@ -283,7 +346,7 @@ program
 
 program
   .command('thumb <url>')
-  .description('VidMate / Snaptube Tool: Extract original high-resolution poster artwork / thumbnail')
+  .description('Extract original high-resolution poster artwork / thumbnail')
   .option('-o, --out-dir <directory>', 'Destination directory')
   .action((url, opts) => {
     console.log(`\n🖼️  Downloading high-resolution poster artwork for: ${url}`);
@@ -310,7 +373,7 @@ program
 
 program
   .command('subs <url>')
-  .description('VidMate / Snaptube Tool: Extract subtitles / closed captions as standard .srt')
+  .description('Extract subtitles / closed captions as standard .srt')
   .option('-l, --lang <lang>', 'Subtitle language code', 'en')
   .option('-o, --out-dir <directory>', 'Destination directory')
   .action((url, opts) => {
@@ -346,7 +409,7 @@ program
     const deps = DependencyChecker.verifyAll();
     deps.forEach((d) => {
       const icon = d.installed ? '✔' : '✖';
-      console.log(`  ${icon} ${d.name.padEnd(12)}: ${d.installed ? d.version : 'MISSING'}`);
+      console.log(`  ${icon} ${d.name.padEnd(12)}: ${d.installed ? (d.version || 'INSTALLED') : 'MISSING'}`);
     });
     console.log();
   });
@@ -372,18 +435,17 @@ program
     console.log();
   });
 
-
-const configCmd = program.command("config").description("View or manage persistent configuration settings");
+const configCmd = program.command('config').description('View or manage persistent configuration settings');
 
 configCmd
-  .command("list", { isDefault: true })
-  .description("Display all current configuration settings")
+  .command('list', { isDefault: true })
+  .description('Display all current configuration settings')
   .action(() => {
     const cfg = configStore.getAll();
-    console.log("\n⚙️  GridPull Configuration Settings (~/.config/gridpull-cli/config.json):");
-    console.log("─────────────────────────────────────────────────────────────────────────────────");
-    console.log("KEY                   VALUE                                 DESCRIPTION");
-    console.log("─────────────────────────────────────────────────────────────────────────────────");
+    console.log('\n⚙️  GridPull Configuration Settings (~/.config/gridpull-cli/config.json):');
+    console.log('─────────────────────────────────────────────────────────────────────────────────');
+    console.log('KEY                   VALUE                                 DESCRIPTION');
+    console.log('─────────────────────────────────────────────────────────────────────────────────');
     console.log(`downloadDir           ${cfg.downloadDir.padEnd(36)} Base storage directory`);
     console.log(`subfoldersEnabled     ${String(cfg.subfoldersEnabled).padEnd(36)} Sort into audio/ & videos/ folders`);
     console.log(`maxConcurrency        ${String(cfg.maxConcurrency).padEnd(36)} Max concurrent worker tasks`);
@@ -391,14 +453,17 @@ configCmd
     console.log(`defaultFormat         ${cfg.defaultFormat.padEnd(36)} Default video resolution profile`);
     console.log(`defaultAudioFormat    ${cfg.defaultAudioFormat.padEnd(36)} Default audio container extension`);
     console.log(`audioBitrate          ${cfg.audioBitrate.padEnd(36)} Standalone audio bitrate quality`);
+    console.log(`diskSpaceHeadroomMB   ${String(cfg.diskSpaceHeadroomMB).padEnd(36)} Minimum required disk headroom (MB)`);
+    console.log(`retryMaxAttempts      ${String(cfg.retryMaxAttempts).padEnd(36)} Retry count for failed transfers`);
+    console.log(`retryBackoffMs        ${String(cfg.retryBackoffMs).padEnd(36)} Base exponential backoff (ms)`);
     console.log(`autoStartOnQueue      ${String(cfg.autoStartOnQueue).padEnd(36)} Auto-start queued tasks`);
-    console.log("─────────────────────────────────────────────────────────────────────────────────");
-    console.log("Tip: Modify settings via CLI: \"gridpull config set <key> <value>\" or run TUI.\n");
+    console.log('─────────────────────────────────────────────────────────────────────────────────');
+    console.log('Tip: Modify settings via CLI: "gridpull config set <key> <value>" or run TUI.\n');
   });
 
 configCmd
-  .command("get <key>")
-  .description("Get value of a specific configuration key")
+  .command('get <key>')
+  .description('Get value of a specific configuration key')
   .action((key) => {
     const val = configStore.get(key as any);
     if (val === undefined) {
@@ -409,17 +474,12 @@ configCmd
   });
 
 configCmd
-  .command("set <key> <value>")
-  .description("Set value for a configuration key")
+  .command('set <key> <value>')
+  .description('Set value for a configuration key')
   .action((key, value) => {
-    let parsed: any = value;
-    if (value === "true") parsed = true;
-    else if (value === "false") parsed = false;
-    else if (!isNaN(Number(value)) && key !== "audioBitrate") parsed = Number(value);
-
     try {
-      configStore.set(key as any, parsed);
-      console.log(`✔ Updated configuration setting: ${key} = ${parsed}`);
+      configStore.set(key as any, value);
+      console.log(`✔ Updated configuration setting: ${key} = ${configStore.get(key as any)}`);
     } catch (err: any) {
       console.error(`✖ Failed to update configuration setting: ${err.message}`);
       process.exit(1);
@@ -427,11 +487,11 @@ configCmd
   });
 
 configCmd
-  .command("reset")
-  .description("Reset configuration settings to defaults")
+  .command('reset')
+  .description('Reset configuration settings to defaults')
   .action(() => {
     configStore.reset();
-    console.log("✔ Configuration reset to installation defaults.");
+    console.log('✔ Configuration reset to installation defaults.');
   });
 
 program.parse(process.argv);

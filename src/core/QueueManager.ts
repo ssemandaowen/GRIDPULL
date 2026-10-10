@@ -50,6 +50,9 @@ export class QueueManager extends EventEmitter {
       writeSubs?: boolean;
       subLang?: string;
       cookies?: string | null;
+      threads?: number;
+      audioQuality?: string;
+      force?: boolean;
     } = {}
   ): DownloadJob {
     const config = this.configStore.getAll();
@@ -81,7 +84,11 @@ export class QueueManager extends EventEmitter {
       writeSubs: options.writeSubs,
       subLang: options.subLang,
       cookies: options.cookies,
+      force: options.force,
     };
+
+    (job as any).threads = options.threads;
+    (job as any).audioQuality = options.audioQuality || resolvedTier.audioQuality;
 
     this.queue.push(job);
     this.emit('jobEnqueued', job);
@@ -100,11 +107,15 @@ export class QueueManager extends EventEmitter {
       format?: string;
       targetDirectory?: string;
       mediaType?: 'video' | 'audio';
+      section?: string | null;
+      cookies?: string | null;
+      threads?: number;
+      force?: boolean;
     } = {}
   ): DownloadJob[] {
     const jobs = urls
       .map((u) => u.trim())
-      .filter((u) => u.length > 0)
+      .filter((u) => u.length > 0 && !u.startsWith('#'))
       .map((url) => this.enqueue(url, { ...options, autoStart: false }));
 
     this.isPaused = false;
@@ -289,7 +300,10 @@ export class QueueManager extends EventEmitter {
 
     const nextJob = this.queue.find((j) => j.status === 'PENDING');
     if (!nextJob) {
-      if (this.activeWorkers === 0) {
+      const hasActiveOrPending = this.queue.some(
+        (j) => j.status === 'PENDING' || j.status === 'RUNNING' || j.status === 'RETRYING'
+      );
+      if (!hasActiveOrPending && this.activeWorkers === 0) {
         this.emit('queueDrained');
       }
       return;
@@ -306,20 +320,22 @@ export class QueueManager extends EventEmitter {
         title: nextJob.title || nextJob.url,
         format: nextJob.formatSelector,
         mediaType: nextJob.mediaType,
+        targetDirectory: nextJob.targetDirectory,
         targetPath: nextJob.targetDirectory,
         status: 'FAILED',
         error: nextJob.error,
       });
       this.emit('jobFailed', nextJob);
+      this.dispatchNext();
       return;
     }
 
     // Deduplication check
-    if (this.historyRepo.isDuplicate(nextJob.url, nextJob.targetDirectory)) {
+    if (this.historyRepo.isDuplicate(nextJob.url, nextJob.targetDirectory, nextJob.formatSelector, nextJob.force)) {
       nextJob.status = 'SKIPPED';
       const idx = this.queue.indexOf(nextJob);
       if (idx >= 0) this.queue.splice(idx, 1);
-      this.emit('jobSkipped', nextJob);
+      this.emit('jobSkipped', nextJob, 'Already downloaded (duplicate record)');
       this.dispatchNext();
       return;
     }
@@ -333,6 +349,8 @@ export class QueueManager extends EventEmitter {
     this.activeEngines.set(nextJob.id, engine);
 
     const resolvedTier = FormatRegistry.resolve(nextJob.formatSelector);
+    const threads = (nextJob as any).threads || this.configStore.get('parallelThreads');
+    const audioQuality = (nextJob as any).audioQuality || resolvedTier.audioQuality;
 
     engine.on('metadata', (meta) => {
       if (meta.title && (!nextJob.title || nextJob.title === nextJob.url)) {
@@ -369,8 +387,8 @@ export class QueueManager extends EventEmitter {
         url: nextJob.url,
         format: nextJob.formatSelector,
         targetDirectory: nextJob.targetDirectory,
-        parallelThreads: this.configStore.get('parallelThreads'),
-        audioQuality: resolvedTier.audioQuality,
+        parallelThreads: threads,
+        audioQuality,
         retries: this.configStore.get('retryMaxAttempts'),
         mergeFormat: resolvedTier.mergeFormat,
         section: nextJob.section,
@@ -391,6 +409,7 @@ export class QueueManager extends EventEmitter {
           title: nextJob.title || nextJob.filename || nextJob.url,
           format: nextJob.formatSelector,
           mediaType: nextJob.mediaType,
+          targetDirectory: nextJob.targetDirectory,
           targetPath,
           status: 'COMPLETED',
           error: null,
@@ -428,6 +447,7 @@ export class QueueManager extends EventEmitter {
           title: nextJob.title || nextJob.url,
           format: nextJob.formatSelector,
           mediaType: nextJob.mediaType,
+          targetDirectory: nextJob.targetDirectory,
           targetPath: nextJob.targetDirectory,
           status: 'FAILED',
           error: err.message,

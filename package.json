@@ -14,8 +14,9 @@
     "install:all": "node bin/installer.js",
     "postinstall": "node bin/installer.js",
     "cli": "node bin/gridpull.js",
-    "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "lint": "tsc --noEmit",
+    "test": "tsx --test test/tasks.test.ts"
   },
   "dependencies": {
     "commander": "^15.0.0",

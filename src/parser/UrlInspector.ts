@@ -4,22 +4,17 @@
  */
 
 import { spawn } from 'node:child_process';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { MediaMetadata, SearchResultItem, StreamFormat } from '../types/index.js';
 import { FormatParser } from './FormatParser.js';
 import { InspectionError } from '../errors/SystemErrors.js';
 import { ErrorClassifier } from '../errors/ErrorClassifier.js';
 import { ProcessRegistry } from '../core/ProcessRegistry.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { getEngineScriptPath } from '../utils/paths.js';
+import { resolvePython } from '../utils/python.js';
 
 export class UrlInspector {
-  private readonly pyEnginePath: string;
-
-  constructor() {
-    this.pyEnginePath = path.resolve(__dirname, '..', '..', 'python', 'yt_engine.py');
+  private get pyEnginePath(): string {
+    return getEngineScriptPath();
   }
 
   public async inspect(url: string): Promise<MediaMetadata> {
@@ -90,10 +85,6 @@ export class UrlInspector {
     }
   }
 
-  /**
-   * Unified single-pass probe: queries yt-dlp once via the Python engine,
-   * returning both full media metadata and parsed format tiers together.
-   */
   public async probe(url: string): Promise<{ metadata: MediaMetadata; formats: StreamFormat[] }> {
     const sanitizeTitle = (title: string) => title.replace(/[\\/:*?"<>|]/g, '_').trim() || 'media';
     try {
@@ -142,7 +133,6 @@ export class UrlInspector {
 
       return { metadata, formats };
     } catch (err: any) {
-      // Graceful fallback to inspect + getAvailableFormats if single probe fails
       const meta = await this.inspect(url);
       const formats = await this.getAvailableFormats(url);
       return { metadata: meta, formats };
@@ -205,7 +195,14 @@ export class UrlInspector {
 
   private executeSubprocess(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      const proc = spawn('python3', [this.pyEnginePath, ...args], {
+      let py;
+      try {
+        py = resolvePython();
+      } catch (err: any) {
+        return reject(new InspectionError(err.message));
+      }
+
+      const proc = spawn(py.command, [...py.args, this.pyEnginePath, ...args], {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 

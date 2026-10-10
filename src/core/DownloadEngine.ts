@@ -7,14 +7,12 @@
 import { EventEmitter } from 'node:events';
 import { spawn, ChildProcess } from 'node:child_process';
 import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { DownloadError } from '../errors/SystemErrors.js';
 import { ErrorClassifier } from '../errors/ErrorClassifier.js';
 import { ProcessRegistry } from './ProcessRegistry.js';
 import { QueueTelemetry } from '../types/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { getEngineScriptPath } from '../utils/paths.js';
+import { resolvePython } from '../utils/python.js';
 
 export interface ExecutionOptions {
   url: string;
@@ -37,7 +35,7 @@ export class DownloadEngine extends EventEmitter {
 
   constructor() {
     super();
-    this.pyEnginePath = path.resolve(__dirname, '..', '..', 'python', 'yt_engine.py');
+    this.pyEnginePath = getEngineScriptPath();
   }
 
   public abort(): void {
@@ -90,7 +88,8 @@ export class DownloadEngine extends EventEmitter {
         args.push('--cookies', options.cookies);
       }
 
-      const proc: ChildProcess = spawn('python3', [this.pyEnginePath, ...args], {
+      const py = resolvePython();
+      const proc: ChildProcess = spawn(py.command, [...py.args, this.pyEnginePath, ...args], {
         detached: process.platform !== 'win32',
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -102,6 +101,16 @@ export class DownloadEngine extends EventEmitter {
       let stderrBuffer = '';
       let lastTelemetryTime = 0;
       let downloadedFilePath: string = '';
+      const rollingLogs: string[] = [];
+
+      const recordLog = (msg: string) => {
+        if (!msg) return;
+        rollingLogs.push(msg);
+        if (rollingLogs.length > 50) {
+          rollingLogs.shift();
+        }
+        this.emit('log', msg);
+      };
 
       proc.stdout?.on('data', (chunk: Buffer) => {
         stdoutBuffer += chunk.toString('utf8');
@@ -131,20 +140,21 @@ export class DownloadEngine extends EventEmitter {
                   });
                 }
               } else if (eventPayload.type === 'LOG') {
-                this.emit('log', eventPayload.message);
+                recordLog(eventPayload.message);
               }
             } catch {
-              this.emit('log', trimmed);
+              recordLog(trimmed);
             }
             continue;
           }
 
-          this.emit('log', trimmed);
+          recordLog(trimmed);
         }
       });
 
       proc.stderr?.on('data', (chunk: Buffer) => {
-        stderrBuffer += chunk.toString('utf8');
+        const text = chunk.toString('utf8');
+        stderrBuffer += text;
       });
 
       proc.on('error', (err) => {
@@ -157,9 +167,26 @@ export class DownloadEngine extends EventEmitter {
         if (code === 0) {
           resolve(downloadedFilePath || options.targetDirectory);
         } else {
-          const fullErr = stderrBuffer.trim() || stdoutBuffer.trim();
-          const classified = ErrorClassifier.classify(fullErr);
-          reject(new DownloadError(classified.message, classified.kind, classified.retryable, fullErr));
+          const joinedLogs = rollingLogs.join('\n');
+          const combinedLogText = [joinedLogs, stderrBuffer.trim(), stdoutBuffer.trim()]
+            .filter(Boolean)
+            .join('\n');
+
+          const classified = ErrorClassifier.classify(combinedLogText);
+
+          let displayMsg = classified.message;
+          const errorLine = rollingLogs.find((l) => l.includes('ERROR:')) ||
+            stderrBuffer.split('\n').find((l) => l.includes('ERROR:'));
+
+          if (errorLine) {
+            const idx = errorLine.indexOf('ERROR:');
+            const cleanErrLine = errorLine.substring(idx).trim();
+            if (cleanErrLine && !classified.message.includes(cleanErrLine)) {
+              displayMsg = `${classified.message} (${cleanErrLine})`;
+            }
+          }
+
+          reject(new DownloadError(displayMsg, classified.kind, classified.retryable, combinedLogText));
         }
       });
     });

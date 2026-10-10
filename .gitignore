@@ -7,6 +7,11 @@ coverage/
 .env*
 !.env.example
 downloads/
+config/
+python/yt-dlp
+python/yt-dlp.exe
+__pycache__/
+*.pyc
 *.mp4
 *.m4a
 *.mp3
@@ -15,3 +20,5 @@ downloads/
 *.ytdl
 *.srt
 cookies.txt
+bin/gridpull.cmd
+bin/gridpull.ps1

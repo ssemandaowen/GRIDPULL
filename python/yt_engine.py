@@ -99,8 +99,9 @@ def get_ytdlp_cmd():
 _YT_DLP_BOT_WORKAROUNDS = [
     "--extractor-args", "youtube:player_client=android,web,mweb",
     "--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    "--no-check-certificates",
 ]
+if os.environ.get("GRIDPULL_INSECURE_TLS") == "1":
+    _YT_DLP_BOT_WORKAROUNDS.append("--no-check-certificates")
 
 def format_bytes(val):
     if not val or val <= 0:
@@ -131,7 +132,12 @@ def search_media(query, count=20, source='youtube'):
     ]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = proc.communicate(timeout=45)
+        try:
+            stdout, stderr = proc.communicate(timeout=45)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            return {"error": "Search query timed out"}
         if proc.returncode != 0:
             return {"error": stderr.strip() or "Search failed"}
         data = json.loads(stdout)
@@ -169,7 +175,12 @@ def extract_info(url, is_playlist=False):
     ]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = proc.communicate(timeout=60)
+        try:
+            stdout, stderr = proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            return {"error": "Metadata extraction timed out"}
         if proc.returncode != 0:
             return {"error": stderr.strip() or "Failed to extract metadata"}
         
@@ -271,7 +282,12 @@ def probe_media(url):
     ]
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        stdout, stderr = proc.communicate(timeout=60)
+        try:
+            stdout, stderr = proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            return {"error": "Probe query timed out"}
         if proc.returncode != 0:
             return {"error": stderr.strip() or "Failed to probe media"}
 
@@ -412,7 +428,7 @@ def run_download(args):
     progress_template = "%(progress._percent_str)s\x1f%(progress._downloaded_bytes_str)s\x1f%(progress._speed_str)s\x1f%(progress._eta_str)s\x1f%(progress.filename)s"
     cmd.extend(["--progress-template", f"download:GP:{progress_template}"])
 
-    cache_dir = os.path.join(os.getcwd(), "config", "cache")
+    cache_dir = os.path.expanduser("~/.config/gridpull-cli/cache")
     os.makedirs(cache_dir, exist_ok=True)
     cmd.extend(["--cache-dir", cache_dir, "--no-mtime", "--embed-metadata", "--newline"])
     
